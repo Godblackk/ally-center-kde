@@ -16,6 +16,8 @@ Documentación de referencia de archivos, rutas del kernel y funciones del proye
   * `contents/icons/`: Iconos SVG (`logo.svg`, `fan.svg`, `leaf.svg`, `balance.svg`, `rocket.svg`, `manual.svg`).
   * `contents/scripts/estado.sh`: Lector rápido de telemetría en POSIX shell (sin `sudo`, ejecutado cada `500 ms` con el popup abierto para cero latencia).
   * `contents/scripts/ally_center.py`: Backend Python con privilegios root (vía `sudoers`) para escritura en hardware y persistencia en el arranque.
+  * `contents/scripts/ally_steam_bridge.py`: Demonio de usuario (`systemd --user`) que conecta vía WebSocket al puerto de depuración CEF de Steam (`localhost:8080`) para inyectar la interfaz de control en el menú rápido (`QuickAccess`) de Modo Juego sin depender de Decky Loader.
+
   * `contents/ui/main.qml`: Interfaz gráfica QML / Kirigami / PlasmaComponents.
 
 ---
@@ -65,3 +67,11 @@ Documentación de referencia de archivos, rutas del kernel y funciones del proye
 | `boot` | *(ninguno)* | Ejecutado por `systemd` al arrancar para restaurar `/etc/ally-center.json`. |
 
 
+## 4. Integración con Steam Modo Juego (`ally_steam_bridge.py`)
+
+Para ofrecer control directo desde **Gamescope / Steam GamepadUI** sin requerir plugins de terceros (como Decky Loader), el proyecto utiliza el protocolo de depuración remota de Chromium Embedded Framework (CEF):
+
+* **Activación CEF:** `install.sh` crea el archivo `.cef-enable-remote-debugging` en el directorio raíz de Steam (`~/.local/share/Steam/` y rutas Flatpak/symlink), habilitando la API JSON en `http://localhost:8080/json`.
+* **Detección de ventana (`QuickAccess`):** `ally_steam_bridge.py` (gestionado por `~/.config/systemd/user/ally-steam-bridge.service`) consulta periódicamente los targets activos y establece una conexión WebSocket únicamente con la ventana del menú rápido (`title.startswith("QuickAccess")`).
+* **Inyección DOM y navegación con mando:** Mediante `Runtime.evaluate` y un `MutationObserver`, inserta la tarjeta **Center ROG Ally X** al final de la pestaña de **Rendimiento (`...` → ⚡)** con soporte de enfoque (`tabindex="0"`) y eventos de teclado (`ArrowLeft`, `ArrowRight`, `Enter`) mapeados a la cruceta D-Pad y botón A.
+* **Comunicación bidireccional (`Runtime.addBinding`):** Registra el canal `allyBridgeSend` en el contexto JS de Steam para recibir comandos (`estado`, `tdp`, `boost`, `curva`) y delegar la escritura en hardware a `sudo python3 ally_center.py`.
