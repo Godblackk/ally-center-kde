@@ -3,7 +3,12 @@ import glob
 import json
 import os
 import sys
-import glob, json, os, subprocess, sys
+import glob
+import json
+import os
+import subprocess
+import sys
+import time
 
 def buscar_hwmon(nombre_objetivo):
     for archivo_name in glob.glob("/sys/class/hwmon/hwmon*/name"):
@@ -86,6 +91,25 @@ def leer_estado():
             datos["bateria_80"] = (int(f.read().strip()) <= 85)
     except Exception:
         pass
+
+
+    if os.path.exists(CONFIG_SISTEMA):
+        try:
+            with open(CONFIG_SISTEMA, "r") as f:
+                cfg = json.load(f)
+                if "curva" in cfg:
+                    datos["curva"] = cfg["curva"]
+                if "modo_fan" in cfg:
+                    datos["modo_fan"] = cfg["modo_fan"]
+                if "tdp_manual" in cfg:
+                    datos["tdp_manual"] = cfg["tdp_manual"]
+                if "boost" in cfg:
+                    datos["boost"] = cfg["boost"]
+                if "bateria_80" in cfg:
+                    datos["bateria_80"] = cfg["bateria_80"]
+        except Exception:
+            pass
+
 
     print(json.dumps(datos))
 
@@ -228,7 +252,6 @@ def guardar_estado_sistema(clave, valor):
             json.dump(estado, f, indent=2)
     except Exception:
         pass
-
 def restaurar_boot():
     if not os.path.exists(CONFIG_SISTEMA):
         return
@@ -238,10 +261,16 @@ def restaurar_boot():
     except Exception:
         return
 
-    if "perfil" in estado:
-        ajustar_perfil(estado["perfil"])
     if estado.get("tdp_manual") and "tdp" in estado:
+        if "perfil" in estado:
+            ajustar_perfil(estado["perfil"])
+        time.sleep(0.5)
         ajustar_tdp(estado["tdp"])
+    else:
+        if "perfil" in estado:
+            ajustar_perfil(estado["perfil"])
+        time.sleep(0.5)
+
     if "boost" in estado:
         ajustar_boost("1" if estado["boost"] else "0")
     if "bateria_80" in estado:
@@ -259,6 +288,7 @@ def restaurar_boot():
             puntos = estado["curva"]
             if len(puntos) == 8:
                 aplicar_puntos(carpeta_curva, ("pwm1", "pwm2"), puntos)
+
 
 
 

@@ -77,7 +77,7 @@ PlasmoidItem {
         } else {
             ejecutarComando("perfil " + root.perfilEnergia)
         }
-        aplicarVentiladores()
+        aplicarEstadoActual()
     }
 
 
@@ -99,22 +99,8 @@ PlasmoidItem {
 
     // Al arrancar el escritorio o reiniciar Plasma: carga la curva y la aplica
     Component.onCompleted: {
-        let textoCurva = Plasmoid.configuration.curvaGuardada
-        if (textoCurva && textoCurva.length > 0) {
-            let partes = textoCurva.split(",")
-            if (partes.length === 8) {
-                let cargada = Array()
-                for (let i = 0; i < 8; i++) {
-                    cargada.push(parseInt(partes.at(i)))
-                }
-                root.curvaPuntos = cargada
-            }
-        }
         ejecutarComando("estado")
-        if (root.tdpManual) {
-            ejecutarComando("tdp " + root.tdpWatts)
-        }
-        aplicarTodoEnergia()
+
     }
 
     Plasma5Support.DataSource {
@@ -131,6 +117,23 @@ PlasmoidItem {
                         root.cpuTemp = info.temp || 0
                         sincronizarCurvaDinamica()
                         root.apuWatts = info.watts || "0.0"
+
+                        if (!root.bloqueadoSync) {
+                            if (info.perfil !== undefined) root.perfilEnergia = info.perfil
+                            if (info.tdp !== undefined) root.tdpWatts = info.tdp
+                            if (info.tdp_manual !== undefined) root.tdpManual = info.tdp_manual
+                            if (info.boost !== undefined) root.cpuBoost = info.boost
+                            if (info.bateria_80 !== undefined) root.cuidadoBateria = info.bateria_80
+
+                            if (info.curva && info.curva.length === 8) {
+                                root.curvaPuntos = info.curva
+                                graficoCanvas.requestPaint()
+                            }
+                            if (info.modo_fan !== undefined) {
+                                root.modoActual = (info.modo_fan === "auto") ? 0 : (info.modo_fan === "manual" ? 1 : 2)
+                            }
+                        }
+
                         if (info.ac_conectado !== undefined) {
                             let cambioAc = (root.acConectado !== info.ac_conectado)
                             root.acConectado = info.ac_conectado
@@ -142,12 +145,6 @@ PlasmoidItem {
                                 root.tdpWatts = root.acConectado ? 30 : 25
                                 ejecutarComando("perfil 2")
                             }
-                        }
-                        if (!root.bloqueadoSync) {
-                            if (info.perfil !== undefined) root.perfilEnergia = info.perfil
-                            if (info.tdp !== undefined) root.tdpWatts = info.tdp
-                            if (info.boost !== undefined) root.cpuBoost = info.boost
-                            if (info.bateria_80 !== undefined) root.cuidadoBateria = info.bateria_80
                         }
                 } catch (e) {}
             }
