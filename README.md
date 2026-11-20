@@ -48,3 +48,12 @@ cd ~/ally-center-kde
 git pull
 ./install.sh
 ```
+
+## Desinstalación
+
+Si deseas eliminar por completo el widget, el servicio de arranque, los iconos y las reglas de permisos del sistema:
+
+```bash
+cd ~/ally-center-kde
+./uninstall.sh
+```
