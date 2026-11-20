@@ -252,6 +252,8 @@ def guardar_estado_sistema(clave, valor):
             json.dump(estado, f, indent=2)
     except Exception:
         pass
+
+
 def restaurar_boot():
     if not os.path.exists(CONFIG_SISTEMA):
         return
@@ -262,14 +264,13 @@ def restaurar_boot():
         return
 
     if estado.get("tdp_manual") and "tdp" in estado:
-        if "perfil" in estado:
-            ajustar_perfil(estado["perfil"])
-        time.sleep(0.5)
         ajustar_tdp(estado["tdp"])
+        time.sleep(0.5)
     else:
         if "perfil" in estado:
             ajustar_perfil(estado["perfil"])
         time.sleep(0.5)
+
 
     if "boost" in estado:
         ajustar_boost("1" if estado["boost"] else "0")

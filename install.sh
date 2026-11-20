@@ -27,7 +27,9 @@ After=multi-user.target power-profiles-daemon.service
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/sleep 8
 ExecStart=/usr/bin/python3 $HOME/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py boot
+RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
