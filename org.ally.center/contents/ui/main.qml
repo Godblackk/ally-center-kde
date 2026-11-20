@@ -127,7 +127,9 @@ PlasmoidItem {
 
                             if (info.curva && info.curva.length === 8) {
                                 root.curvaPuntos = info.curva
-                                graficoCanvas.requestPaint()
+                                if (typeof graficoCanvas !== "undefined" && graficoCanvas) {
+                                    graficoCanvas.requestPaint()
+                                }
                             }
                             if (info.modo_fan !== undefined) {
                                 root.modoActual = (info.modo_fan === "auto") ? 0 : (info.modo_fan === "manual" ? 1 : 2)
@@ -146,7 +148,9 @@ PlasmoidItem {
                                 ejecutarComando("perfil 2")
                             }
                         }
-                } catch (e) {}
+                } catch (e) {
+                    console.warn("AllyCenter error:", e)
+                }
             }
             disconnectSource(sourceName)
         }
