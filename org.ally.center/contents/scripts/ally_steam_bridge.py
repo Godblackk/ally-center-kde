@@ -233,8 +233,9 @@ async def manejar_target(ws_url):
                     elif cmd == "boost":
                         ejecutar_ally(["boost", "1" if payload["val"] else "0"])
                     elif cmd == "curva":
-                        pts = [str(int(x)) for x in payload["val"]]
-                        ejecutar_ally(["curva"] + pts)
+                        pts_csv = ",".join(str(int(x)) for x in payload["val"])
+                        ejecutar_ally(["guardar_curva", pts_csv])
+
     except Exception:
         pass
 
