@@ -1,33 +1,20 @@
 # Arquitectura Técnica - Center ROG Ally (KDE Plasma 6)
 
-Documentación de referencia de archivos, rutas del kernel y funciones del proyecto `org.ally.center` para futuras ampliaciones (brillo, tasa de refresco Hz, RGB, etc.).
+Documentación de referencia de archivos, rutas del kernel y funciones del proyecto `org.ally.center` para futuras ampliaciones.
 
 ---
 
 ## 1. Estructura de archivos del proyecto
 
-```text
-ally-center-kde/
-├── install.sh                       # Instalador automático (kpackagetool6, iconos hicolor, sudoers y systemd)
-├── README.md                        # Guía de uso e instalación rápida
-├── ARQUITECTURA.md                  # Esta guía técnica de referencia
-└── org.ally.center/                 # Paquete del widget (Plasmoide KDE Plasma 6)
-    ├── metadata.json                # Metadatos del applet (ID: org.ally.center, Icon: ally-center)
-    └── contents/
-        ├── config/
-        │   └── main.xml             # Esquema KConfig para persistencia de ajustes en Plasma
-        ├── icons/
-        │   ├── logo.svg             # Emblema rojo/oscuro para la galería de widgets (hicolor)
-        │   ├── fan.svg              # Icono de pestaña Ventiladores
-        │   ├── leaf.svg             # Icono barra de tareas: Ahorro (13W)
-        │   ├── balance.svg          # Icono barra de tareas: Equilibrado (17W)
-        │   ├── rocket.svg           # Icono barra de tareas: Rendimiento (25W/30W)
-        │   └── manual.svg           # Icono barra de tareas: Límite TDP Manual
-        ├── scripts/
-        │   └── ally_center.py       # Backend Python con privilegios root (vía sudoers)
-        └── ui/
-            └── main.qml             # Interfaz gráfica QML / Kirigami / PlasmaComponents
-```
+* `install.sh`: Instalador automático (`kpackagetool6`, iconos `hicolor`, `sudoers` y `systemd`).
+* `README.md`: Guía de uso e instalación rápida.
+* `ARQUITECTURA.md`: Esta guía técnica de referencia.
+* `org.ally.center/`: Paquete del widget (Plasmoide KDE Plasma 6)
+  * `metadata.json`: Metadatos del applet (`ID: org.ally.center`, `Icon: ally-center`).
+  * `contents/config/main.xml`: Esquema KConfig para persistencia de ajustes en Plasma.
+  * `contents/icons/`: Iconos SVG (`logo.svg`, `fan.svg`, `leaf.svg`, `balance.svg`, `rocket.svg`, `manual.svg`).
+  * `contents/scripts/ally_center.py`: Backend Python con privilegios root (vía `sudoers`).
+  * `contents/ui/main.qml`: Interfaz gráfica QML / Kirigami / PlasmaComponents.
 
 ---
 
@@ -66,17 +53,3 @@ ally-center-kde/
 | `cpu_fan` / `gpu_fan` | `0`..`100` | Ajusta individualmente CPU (`pwm1`) o GPU (`pwm2`). |
 | `guardar_curva` | `v1,v2,...,v8` | Guarda los 8 puntos en `/etc/ally-center.json` y los aplica al firmware. |
 | `boot` | *(ninguno)* | Ejecutado por `systemd` al arrancar para restaurar `/etc/ally-center.json`. |
-
----
-
-## 4. Flujo de edición local y subida a GitHub
-
-1. **Editar archivos instalados:** `~/.local/share/plasma/plasmoids/org.ally.center/contents/ui/main.qml` o `contents/scripts/ally_center.py`.
-2. **Recargar Plasma para probar:** `systemctl --user restart plasma-plasmashell`
-3. **Sincronizar con el repositorio local y subir:**
-   ```fish
-   rm -rf ~/ally-center-kde/org.ally.center ~/Respaldo_AllyCenter && \
-   cp -r ~/.local/share/plasma/plasmoids/org.ally.center ~/ally-center-kde/org.ally.center && \
-   cp -r ~/.local/share/plasma/plasmoids/org.ally.center ~/Respaldo_AllyCenter && \
-   cd ~/ally-center-kde && git add . && git commit -m "Actualizar cambios" && git push
-   ```
