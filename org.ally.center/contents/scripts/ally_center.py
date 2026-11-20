@@ -15,18 +15,6 @@ def buscar_hwmon(nombre_objetivo):
             pass
     return None
 
-def detectar_modelo():
-    try:
-        with open("/sys/devices/virtual/dmi/id/product_name", "r") as f:
-            prod = f.read().strip()
-        if "Ally X" in prod or "RC72" in prod:
-            return "Center ROG Ally X"
-        elif "Ally" in prod or "RC71" in prod:
-            return "Center ROG Ally"
-    except Exception:
-        pass
-    return "Center ROG Ally X"
-
 def leer_estado():
     datos = {
         "modelo": detectar_modelo(),
@@ -127,36 +115,6 @@ def aplicar_puntos(carpeta, canales, lista_porcentajes):
         if os.path.exists(ruta_enable):
             with open(ruta_enable, "w") as f:
                 f.write("1")
-
-def ajustar_tdp(watts):
-    w = max(7, min(30, int(watts)))
-    base = "/sys/class/firmware-attributes/asus-armoury/attributes"
-    for attr in ("ppt_pl1_spl", "ppt_pl2_sppt", "ppt_pl3_fppt"):
-        ruta = os.path.join(base, attr, "current_value")
-        if os.path.exists(ruta):
-            try:
-                with open(ruta, "w") as f:
-                    f.write(str(w))
-            except Exception:
-                pass
-
-def ajustar_boost(activo):
-    ruta = "/sys/devices/system/cpu/cpufreq/boost"
-    if os.path.exists(ruta):
-        try:
-            with open(ruta, "w") as f:
-                f.write("1" if activo == "1" else "0")
-        except Exception:
-            pass
-
-def ajustar_bateria(limite_80):
-    ruta = "/sys/class/power_supply/BAT0/charge_control_end_threshold"
-    if os.path.exists(ruta):
-        try:
-            with open(ruta, "w") as f:
-                f.write("80" if limite_80 == "1" else "100")
-        except Exception:
-            pass
 
 
 def detectar_modelo():
