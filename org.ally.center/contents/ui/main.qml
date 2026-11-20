@@ -18,6 +18,7 @@ PlasmoidItem {
     property bool cpuBoost: Plasmoid.configuration.cpuBoost
     property bool cuidadoBateria: Plasmoid.configuration.cuidadoBateria
     property string apuWatts: "0.0"
+    property int ultimoPctCurva: -1
     property bool bloqueadoSync: false
     Timer {
         id: timerBloqueo
@@ -125,6 +126,7 @@ PlasmoidItem {
                         root.cpuRpm = info.cpu_rpm || 0
                         root.gpuRpm = info.gpu_rpm || 0
                         root.cpuTemp = info.temp || 0
+                        sincronizarCurvaDinamica()
                         root.apuWatts = info.watts || "0.0"
 
                         if (!root.bloqueadoSync) {
@@ -171,13 +173,32 @@ PlasmoidItem {
 
     function aplicarCurva() {
         guardarConfig()
-        ejecutarComando("curva " + root.curvaPuntos.join(","))
+        root.ultimoPctCurva = -1
+        sincronizarCurvaDinamica()
+
     }
 
+    function sincronizarCurvaDinamica() {
+        if (root.modoActual !== 2) return
+            let tempClamped = Math.max(30, Math.min(100, root.cpuTemp))
+            let posFraccion = (tempClamped - 30) / 10.0
+            let idxBajo = Math.min(6, Math.floor(posFraccion))
+            let idxAlto = idxBajo + 1
+            let tSegmento = posFraccion - idxBajo
+
+            let v1 = root.curvaPuntos.at(idxBajo)
+            let v2 = root.curvaPuntos.at(idxAlto)
+            let pctExacto = Math.round(v1 + (v2 - v1) * tSegmento)
+
+            if (pctExacto !== root.ultimoPctCurva) {
+                root.ultimoPctCurva = pctExacto
+                ejecutarComando("ambos " + pctExacto)
+            }
+    }
 
     Timer {
         interval: 2000
-        running: root.expanded
+        running: root.expanded || root.modoActual === 2
         repeat: true
         triggeredOnStart: true
         onTriggered: ejecutarComando("estado")
@@ -609,6 +630,9 @@ PlasmoidItem {
                         function onCurvaPuntosChanged() {
                             graficoCanvas.requestPaint()
                         }
+                        function onCpuTempChanged() {
+                            if (graficoCanvas.visible) graficoCanvas.requestPaint()
+                        }
                     }
 
                     // Línea azul y cuadrícula horizontal
@@ -649,6 +673,7 @@ PlasmoidItem {
                                     ctx.moveTo(izqX, y)
                                     ctx.lineTo(derX, y)
                                     ctx.stroke()
+
                                 }
 
                                 // Línea azul pasando por el centro exacto de cada círculo
@@ -664,6 +689,40 @@ PlasmoidItem {
                                     }
                                 }
                                 ctx.stroke()
+
+                                // ==========================================
+                                // MARCADOR DINÁMICO DE TEMPERATURA ACTUAL
+                                // ==========================================
+                                let tempClamped = Math.max(30, Math.min(100, root.cpuTemp))
+                                let posFraccion = (tempClamped - 30) / 10.0
+                                let idxBajo = Math.min(6, Math.floor(posFraccion))
+                                let idxAlto = idxBajo + 1
+                                let tSegmento = posFraccion - idxBajo
+
+                                let itemBajo = puntosRepeater.itemAt(idxBajo)
+                                let itemAlto = puntosRepeater.itemAt(idxAlto)
+                                if (itemBajo && itemBajo.circulo && itemAlto && itemAlto.circulo) {
+                                    let p1 = mapFromItem(itemBajo.circulo, 7, 7)
+                                    let p2 = mapFromItem(itemAlto.circulo, 7, 7)
+                                    let curX = p1.x + (p2.x - p1.x) * tSegmento
+                                    let curY = p1.y + (p2.y - p1.y) * tSegmento
+
+                                    // Halo exterior semitransparente
+                                    ctx.fillStyle = root.cpuTemp >= 80 ? "rgba(255, 85, 85, 0.35)" : "rgba(255, 170, 0, 0.35)"
+                                    ctx.beginPath()
+                                    ctx.arc(curX, curY, 9, 0, Math.PI * 2)
+                                    ctx.fill()
+
+                                    // Punto central sólido (naranja normal, rojo si >= 80°C)
+                                    ctx.fillStyle = root.cpuTemp >= 80 ? "#ff5555" : "#ffaa00"
+                                    ctx.beginPath()
+                                    ctx.arc(curX, curY, 5, 0, Math.PI * 2)
+                                    ctx.fill()
+
+                                    ctx.strokeStyle = "#ffffff"
+                                    ctx.lineWidth = 1.5
+                                    ctx.stroke()
+                                }
                         }
                     }
 
