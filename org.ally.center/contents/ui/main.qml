@@ -29,6 +29,9 @@ PlasmoidItem {
         root.bloqueadoSync = true
         timerBloqueo.restart()
     }
+    property bool acConectado: false
+    property int maxTdpActual: root.acConectado ? 30 : 25
+
 
 
 
@@ -128,7 +131,18 @@ PlasmoidItem {
                         root.cpuTemp = info.temp || 0
                         sincronizarCurvaDinamica()
                         root.apuWatts = info.watts || "0.0"
-
+                        if (info.ac_conectado !== undefined) {
+                            let cambioAc = (root.acConectado !== info.ac_conectado)
+                            root.acConectado = info.ac_conectado
+                            if (!root.acConectado && root.tdpWatts > 25) {
+                                root.tdpWatts = 25
+                                if (root.tdpManual) ejecutarComando("tdp 25")
+                            }
+                            if (cambioAc && !root.tdpManual && root.perfilEnergia === 2) {
+                                root.tdpWatts = root.acConectado ? 30 : 25
+                                ejecutarComando("perfil 2")
+                            }
+                        }
                         if (!root.bloqueadoSync) {
                             if (info.perfil !== undefined) root.perfilEnergia = info.perfil
                             if (info.tdp !== undefined) root.tdpWatts = info.tdp
@@ -151,7 +165,7 @@ PlasmoidItem {
         root.vincularFans = true
         root.velAmbos = porcentaje
         guardarConfig()
-        ejecutarComando("ambos " + porcentaje)
+        ejecutarComando("ambos " + porcentaje + " guardar")
     }
 
     function actualizarPuntoCurva(indice, nuevoValor) {
@@ -173,6 +187,7 @@ PlasmoidItem {
 
     function aplicarCurva() {
         guardarConfig()
+        ejecutarComando("guardar_curva " + root.curvaPuntos.join(","))
         root.ultimoPctCurva = -1
         sincronizarCurvaDinamica()
 
@@ -335,12 +350,12 @@ PlasmoidItem {
                     PlasmaComponents.Label { text: "Perfil Energía"; font.pointSize: 9; Layout.fillWidth: true }
                     PlasmaComponents.ComboBox {
                         font.pointSize: 8
-                        model: root.tdpManual ? Array("Manual (Custom)") : Array("Ahorro (Silent)", "Equilibrado", "Rendimiento")
+                        model: root.tdpManual ? ["Manual (Custom)"] : ["Ahorro (13W)", "Equilibrado (17W)", root.acConectado ? "Rendimiento (30W)" : "Rendimiento (25W)"]
                         currentIndex: root.tdpManual ? 0 : root.perfilEnergia
                         onActivated: (index) => {
                             if (!root.tdpManual) {
                                 root.perfilEnergia = index
-                                let wattsBase = [13, 17, 25]
+                                let wattsBase = [13, 17, root.acConectado ? 30 : 25]
                                 root.tdpWatts = wattsBase[index]
                                 guardarConfig()
                                 aplicarTodoEnergia()
@@ -375,7 +390,7 @@ PlasmoidItem {
                     }
                     PlasmaComponents.Slider {
                         Layout.fillWidth: true
-                        from: 7; to: 30; stepSize: 1
+                        from: 7; to: root.maxTdpActual; stepSize: 1
                         value: root.tdpWatts
                         onMoved: root.tdpWatts = value
                         onPressedChanged: if (!pressed) {
@@ -404,8 +419,10 @@ PlasmoidItem {
                         }
                         PlasmaComponents.Button {
                             text: "30W"; font.pointSize: 8; Layout.fillWidth: true
+                            enabled: root.acConectado
+                            opacity: root.acConectado ? 1.0 : 0.4
                             highlighted: root.tdpWatts === 30
-                            onClicked: { root.tdpWatts = 30; guardarConfig(); ejecutarComando("tdp 30") }
+                            onClicked: { pausarSync(); root.tdpWatts = 30; guardarConfig(); ejecutarComando("tdp 30") }
                         }
                     }
                 }
@@ -540,7 +557,7 @@ PlasmoidItem {
                         onMoved: root.velAmbos = value
                         onPressedChanged: if (!pressed) {
                             guardarConfig()
-                            ejecutarComando("ambos " + root.velAmbos)
+                            ejecutarComando("ambos " + root.velAmbos + " guardar")
                         }
                     }
                 }
@@ -649,7 +666,7 @@ PlasmoidItem {
                         }
                         Timer {
                             id: timerPintar
-                            interval: 60
+                            interval: 120
                             onTriggered: {
                                 graficoCanvas.requestPaint()
                                 graficoCanvas.opacity = 1

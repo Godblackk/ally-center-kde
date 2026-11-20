@@ -33,7 +33,8 @@ def leer_estado():
         "cpu_rpm": 0,
         "gpu_rpm": 0,
         "temp": 0,
-        "watts": "0.0"
+        "watts": "0.0",
+        "ac_conectado": cargador_conectado()
 
     }
     carpeta_asus = buscar_hwmon("asus")
@@ -77,10 +78,12 @@ def leer_estado():
     except Exception:
         pass
 
+    datos["ac_conectado"] = cargador_conectado()
     try:
         with open("/sys/class/firmware-attributes/asus-armoury/attributes/ppt_pl1_spl/current_value", "r") as f:
             w_actual = int(f.read().strip())
-            datos["tdp"] = max(7, min(30, w_actual))
+            max_w = 30 if datos["ac_conectado"] else 25
+            datos["tdp"] = max(7, min(max_w, w_actual))
     except Exception:
         pass
 
@@ -169,14 +172,8 @@ def detectar_modelo():
     return "Center ROG Ally X"
 
 def ajustar_tdp(watts):
-    w = max(7, min(30, int(watts)))
-    ruta_perfil = "/sys/firmware/acpi/platform_profile"
-    if os.path.exists(ruta_perfil):
-        try:
-            with open(ruta_perfil, "w") as f:
-                f.write("custom")
-        except Exception:
-            pass
+    max_w = 30 if cargador_conectado() else 25
+    w = max(7, min(max_w, int(watts)))
     base = "/sys/class/firmware-attributes/asus-armoury/attributes"
     for attr in ("ppt_pl1_spl", "ppt_pl2_sppt", "ppt_pl3_fppt"):
         ruta = os.path.join(base, attr, "current_value")
@@ -186,6 +183,8 @@ def ajustar_tdp(watts):
                     f.write(str(w))
             except Exception:
                 pass
+    guardar_estado_sistema("tdp", w)
+    guardar_estado_sistema("tdp_manual", True)
 
 def ajustar_boost(activo):
     ruta = "/sys/devices/system/cpu/cpufreq/boost"
@@ -196,6 +195,8 @@ def ajustar_boost(activo):
         except Exception:
             pass
 
+    guardar_estado_sistema("boost", activo == "1")
+
 def ajustar_bateria(limite_80):
     ruta = "/sys/class/power_supply/BAT0/charge_control_end_threshold"
     if os.path.exists(ruta):
@@ -204,15 +205,31 @@ def ajustar_bateria(limite_80):
                 f.write("80" if limite_80 == "1" else "100")
         except Exception:
             pass
+    guardar_estado_sistema("bateria_80", limite_80 == "1")
+
+
+def cargador_conectado():
+    for fuente in glob.glob("/sys/class/power_supply/*"):
+        try:
+            with open(os.path.join(fuente, "type"), "r") as f:
+                if f.read().strip() == "Mains":
+                    with open(os.path.join(fuente, "online"), "r") as fo:
+                        return fo.read().strip() == "1"
+        except Exception:
+            pass
+    return False
+
+
 
 def ajustar_perfil(indice):
     idx = int(indice) if 0 <= int(indice) <= 2 else 1
     nombres = ("low-power", "balanced", "performance")
+    en_ac = cargador_conectado()
     # Valores oficiales ASUS ROG Ally / Ally X: (SPL, SPPT, FPPT)
     limites_asus = (
-        (13, 17, 20),  # 0: Ahorro (Silent)
-        (17, 20, 25),  # 1: Equilibrado (Performance)
-        (25, 30, 35)   # 2: Rendimiento (Turbo)
+        (13, 17, 20),                                 # 0: Ahorro (Silent)
+        (17, 20, 25),                                 # 1: Equilibrado (Performance)
+        (30, 35, 45) if en_ac else (25, 30, 35)       # 2: Rendimiento (Turbo 30W AC / 25W Bat)
     )
 
     ruta = "/sys/firmware/acpi/platform_profile"
@@ -233,6 +250,57 @@ def ajustar_perfil(indice):
                     f.write(str(val))
             except Exception:
                 pass
+    guardar_estado_sistema("perfil", idx)
+    guardar_estado_sistema("tdp_manual", False)
+
+
+CONFIG_SISTEMA = "/etc/ally-center.json"
+
+def guardar_estado_sistema(clave, valor):
+    estado = {}
+    if os.path.exists(CONFIG_SISTEMA):
+        try:
+            with open(CONFIG_SISTEMA, "r") as f:
+                estado = json.load(f)
+        except Exception:
+            estado = {}
+    estado[clave] = valor
+    try:
+        with open(CONFIG_SISTEMA, "w") as f:
+            json.dump(estado, f, indent=2)
+    except Exception:
+        pass
+
+def restaurar_boot():
+    if not os.path.exists(CONFIG_SISTEMA):
+        return
+    try:
+        with open(CONFIG_SISTEMA, "r") as f:
+            estado = json.load(f)
+    except Exception:
+        return
+
+    if "perfil" in estado:
+        ajustar_perfil(estado["perfil"])
+    if estado.get("tdp_manual") and "tdp" in estado:
+        ajustar_tdp(estado["tdp"])
+    if "boost" in estado:
+        ajustar_boost("1" if estado["boost"] else "0")
+    if "bateria_80" in estado:
+        ajustar_bateria("1" if estado["bateria_80"] else "0")
+
+    carpeta_curva = buscar_hwmon("asus_custom_fan_curve")
+    if carpeta_curva:
+        modo_fan = estado.get("modo_fan", "auto")
+        if modo_fan == "auto":
+            cambiar_modo(carpeta_curva, "auto")
+        elif modo_fan == "manual" and "fan_pct" in estado:
+            pct = int(estado["fan_pct"])
+            aplicar_puntos(carpeta_curva, ("pwm1", "pwm2"), [pct] * 8)
+        elif modo_fan == "curva" and "curva" in estado:
+            puntos = estado["curva"]
+            if len(puntos) == 8:
+                aplicar_puntos(carpeta_curva, ("pwm1", "pwm2"), puntos)
 
 
 
@@ -259,6 +327,18 @@ if __name__ == "__main__":
     elif comando == "bateria" and args:
         ajustar_bateria(args.pop(0))
         sys.exit(0)
+    elif comando == "boot":
+        restaurar_boot()
+        sys.exit(0)
+    elif comando == "guardar_curva" and args:
+        puntos = [int(x) for x in args.pop(0).split(",")]
+        if len(puntos) == 8:
+            guardar_estado_sistema("modo_fan", "curva")
+            guardar_estado_sistema("curva", puntos)
+            carpeta_curva = buscar_hwmon("asus_custom_fan_curve")
+            if carpeta_curva:
+                aplicar_puntos(carpeta_curva, ("pwm1", "pwm2"), puntos)
+        sys.exit(0)
 
     carpeta_curva = buscar_hwmon("asus_custom_fan_curve")
     if not carpeta_curva:
@@ -266,10 +346,15 @@ if __name__ == "__main__":
 
     if comando == "auto":
         cambiar_modo(carpeta_curva, "auto")
+        guardar_estado_sistema("modo_fan", "auto")
     elif comando in ("ambos", "cpu_fan", "gpu_fan") and args:
         pct = int(args.pop(0))
+        guardar = (args and args.pop(0) == "guardar")
         canales = ("pwm1", "pwm2") if comando == "ambos" else (("pwm1",) if comando == "cpu_fan" else ("pwm2",))
         aplicar_puntos(carpeta_curva, canales, list(pct for _ in range(8)))
+        if guardar and comando == "ambos":
+            guardar_estado_sistema("modo_fan", "manual")
+            guardar_estado_sistema("fan_pct", pct)
     elif comando == "curva" and args:
         puntos = list(int(x) for x in args.pop(0).split(","))
         if len(puntos) == 8:
