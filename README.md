@@ -13,6 +13,10 @@ Centro de control nativo de energia, TDP, CPU Boost, limite de carga de bateria 
 - **Control avanzado de ventiladores:**
   - Modos **Automatico (BIOS)**, **Manual (Perfiles / Individual / Vinculado)** y **Curva Personalizada de 8 puntos**.
   - **Grafico interactivo con interpolacion continua:** Calcula y aplica el porcentaje exacto entre nodos grado a grado con un indicador visual dinamico de la temperatura actual.
+- **Integración nativa en Steam Modo Juego (sin Decky Loader):**
+  - Inyecta directamente la tarjeta **Center ROG Ally X** dentro de la pestaña de **Rendimiento (`...` → ⚡)** del menú rápido (`QuickAccess`) de Steam GamepadUI mediante CEF (`ally_steam_bridge.py`).
+  - Permite ajustar **Límite TDP (7W – 30W)**, **CPU Boost** y la **Curva de Ventiladores de 8 puntos** en tiempo real, con navegación completa mediante mando (cruceta D-Pad y botón A).
+
 - **Iconos dinamicos en la barra de tareas:** Cambia automaticamente segun el perfil activo (`leaf.svg` para Ahorro, `balance.svg` para Equilibrado, `rocket.svg` para Rendimiento y `manual.svg` para TDP Manual).
 - **Persistencia en el arranque y Modo Juego (`systemd`):** Guarda el estado en `/etc/ally-center.json` y restaura automaticamente TDP, perfil, CPU Boost, limite de bateria y curva de hardware al encender la consola mediante `ally-center.service` (compatible con inicio directo en Gamescope / SteamOS).
 
@@ -37,6 +41,8 @@ Centro de control nativo de energia, TDP, CPU Boost, limite de carga de bateria 
 * **Registro del widget:** Instala `org.ally.center` en KDE Plasma 6 mediante `kpackagetool6`.
 * **Permisos sin contraseña (`sudoers`):** Crea `/etc/sudoers.d/ally-center` para que el widget pueda ajustar TDP, CPU Boost, límite de batería y ventiladores en tiempo real sin pedir clave.
 * **Persistencia al arrancar (`systemd`):** Instala y activa `ally-center.service`, que lee `/etc/ally-center.json` al encender la consola y aplica tu último TDP, perfil, Boost, límite de carga al 80% y curva de ventiladores (compatible con inicio directo en **Modo Juego / Gamescope**).
+* - **Puente para Steam Modo Juego (`systemd --user`):** Instala la dependencia `python-websockets`, crea el archivo oficial `.cef-enable-remote-debugging` en Steam (nativo y Flatpak) y activa el servicio de usuario `ally-steam-bridge.service` para que el control en el menú rápido funcione automáticamente al entrar en Modo Juego.
+
 
 ---
 
@@ -64,5 +70,5 @@ Este widget esta disenado nativamente para **KDE Plasma 6** y funciona en cualqu
 
 * **CachyOS / Arch Linux / EndeavourOS (KDE Plasma 6):** Soporte completo y nativo (`100%` recomendado).
 * **Bazzite (Edicion KDE Plasma):** Compatible. *Nota:* Bazzite incluye **Handheld Daemon (`hhd`)**; evita ajustar TDP o ventiladores desde `hhd` al mismo tiempo para que no sobrescriban los valores del widget.
-* **SteamOS (Modo Escritorio):** Compatible en versiones basadas en KDE Plasma 6. *Nota:* Tras una actualizacion mayor del sistema operativo, es posible que debas volver a ejecutar `./install.sh` si SteamOS restablece los archivos en `/etc/sudoers.d/` o `/etc/systemd/system/`. Asimismo, el deslizador de TDP nativo de Gamescope (`...` -> Rendimiento) tendra prioridad mientras este activo en Modo Juego.
+- **SteamOS / Gamescope (Modo Escritorio y Modo Juego):** Compatible con versiones basadas en KDE Plasma 6. Al entrar en **Modo Juego**, abre el menú rápido (`...` → **Rendimiento ⚡**) para acceder directamente a la tarjeta **Center ROG Ally X** al final del panel sin necesidad de instalar Decky Loader. *Nota:* Tras una actualización mayor de SteamOS, vuelve a ejecutar `./install.sh` si el sistema restablece los archivos en `/etc/sudoers.d/` o `/etc/systemd/system/`. Asimismo, el deslizador de TDP nativo de Gamescope (`...` -> Rendimiento) tendra prioridad mientras este activo en Modo Juego.
 * **Ediciones con GNOME (ej. Bazzite GNOME):** No compatible, ya que es un plasmoide exclusivo de KDE Plasma 6.
