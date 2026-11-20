@@ -186,8 +186,8 @@ PlasmoidItem {
             let idxAlto = idxBajo + 1
             let tSegmento = posFraccion - idxBajo
 
-            let v1 = root.curvaPuntos.at(idxBajo)
-            let v2 = root.curvaPuntos.at(idxAlto)
+            let v1 = root.curvaPuntos[idxBajo]
+            let v2 = root.curvaPuntos[idxAlto]
             let pctExacto = Math.round(v1 + (v2 - v1) * tSegmento)
 
             if (pctExacto !== root.ultimoPctCurva) {
