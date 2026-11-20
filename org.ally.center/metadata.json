@@ -1,0 +1,19 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Ally User"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Centro de control de TDP, energía y ventiladores para ROG Ally / Ally X",
+        "Icon": "sensors-fan-symbolic",
+        "Id": "org.ally.center",
+        "Name": "Center ROG Ally",
+        "Icon": "preferences-system-performance",
+        "Version": "3.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
+
