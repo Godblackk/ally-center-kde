@@ -41,7 +41,7 @@ Centro de control nativo de energia, TDP, CPU Boost, limite de carga de bateria 
 * **Registro del widget:** Instala `org.ally.center` en KDE Plasma 6 mediante `kpackagetool6`.
 * **Permisos sin contraseña (`sudoers`):** Crea `/etc/sudoers.d/ally-center` para que el widget pueda ajustar TDP, CPU Boost, límite de batería y ventiladores en tiempo real sin pedir clave.
 * **Persistencia al arrancar (`systemd`):** Instala y activa `ally-center.service`, que lee `/etc/ally-center.json` al encender la consola y aplica tu último TDP, perfil, Boost, límite de carga al 80% y curva de ventiladores (compatible con inicio directo en **Modo Juego / Gamescope**).
-* - **Puente para Steam Modo Juego (`systemd --user`):** Instala la dependencia `python-websockets`, crea el archivo oficial `.cef-enable-remote-debugging` en Steam (nativo y Flatpak) y activa el servicio de usuario `ally-steam-bridge.service` para que el control en el menú rápido funcione automáticamente al entrar en Modo Juego.
+* **Puente para Steam Modo Juego (`systemd --user`):** Instala la dependencia `python-websockets`, crea el archivo oficial `.cef-enable-remote-debugging` en Steam (nativo y Flatpak) y activa el servicio de usuario `ally-steam-bridge.service` para que el control en el menú rápido funcione automáticamente al entrar en Modo Juego.
 
 
 ---
@@ -70,5 +70,5 @@ Este widget esta disenado nativamente para **KDE Plasma 6** y funciona en cualqu
 
 * **CachyOS / Arch Linux / EndeavourOS (KDE Plasma 6):** Soporte completo y nativo (`100%` recomendado).
 * **Bazzite (Edicion KDE Plasma):** Compatible. *Nota:* Bazzite incluye **Handheld Daemon (`hhd`)**; evita ajustar TDP o ventiladores desde `hhd` al mismo tiempo para que no sobrescriban los valores del widget.
-- **SteamOS / Gamescope (Modo Escritorio y Modo Juego):** Compatible con versiones basadas en KDE Plasma 6. Al entrar en **Modo Juego**, abre el menú rápido (`...` → **Rendimiento ⚡**) para acceder directamente a la tarjeta **Center ROG Ally X** al final del panel sin necesidad de instalar Decky Loader. *Nota:* Tras una actualización mayor de SteamOS, vuelve a ejecutar `./install.sh` si el sistema restablece los archivos en `/etc/sudoers.d/` o `/etc/systemd/system/`. Asimismo, el deslizador de TDP nativo de Gamescope (`...` -> Rendimiento) tendra prioridad mientras este activo en Modo Juego.
+- **SteamOS / Gamescope (Modo Escritorio y Modo Juego):** Compatible con versiones basadas en KDE Plasma 6. Al entrar en **Modo Juego**, abre el menú rápido (`...` → **Rendimiento ⚡**) para acceder directamente a la tarjeta **Center ROG Ally X** al final del panel sin necesidad de instalar Decky Loader. *Nota:* Tras una actualización mayor de SteamOS, vuelve a ejecutar `./install.sh` si el sistema restablece los archivos en `/etc/sudoers.d/` o `/etc/systemd/system/`.
 * **Ediciones con GNOME (ej. Bazzite GNOME):** No compatible, ya que es un plasmoide exclusivo de KDE Plasma 6.
