@@ -11,14 +11,13 @@ Documentación de referencia de archivos, rutas del kernel y funciones del proye
 * `README.md`: Guía de uso e instalación rápida.
 * `ARQUITECTURA.md`: Esta guía técnica de referencia.
 * `org.ally.center/`: Paquete del widget (Plasmoide KDE Plasma 6)
-  * `metadata.json`: Metadatos del applet (`ID: org.ally.center`, `Icon: ally-center`).
-  * `contents/config/main.xml`: Esquema KConfig para persistencia de ajustes en Plasma.
-  * `contents/icons/`: Iconos SVG (`logo.svg`, `fan.svg`, `leaf.svg`, `balance.svg`, `rocket.svg`, `manual.svg`).
-  * `contents/scripts/estado.sh`: Lector rápido de telemetría en POSIX shell (sin `sudo`, ejecutado cada `500 ms` con el popup abierto para cero latencia).
-  * `contents/scripts/ally_center.py`: Backend Python con privilegios root (vía `sudoers`) para escritura en hardware y persistencia en el arranque.
-  * `contents/scripts/ally_steam_bridge.py`: Demonio de usuario (`systemd --user`) que conecta vía WebSocket al puerto de depuración CEF de Steam (`localhost:8080`) para inyectar la interfaz de control en el menú rápido (`QuickAccess`) de Modo Juego sin depender de Decky Loader.
-
-  * `contents/ui/main.qml`: Interfaz gráfica QML / Kirigami / PlasmaComponents.
+  *  `metadata.json`: Metadatos del applet (`ID: org.ally.center`, `Icon: ally-center`).
+  *  `contents/config/main.xml`: Esquema KConfig para persistencia de ajustes en Plasma.
+  *  `contents/icons/`: Iconos SVG (`logo.svg`, `fan.svg`, `leaf.svg`, `balance.svg`, `rocket.svg`, `manual.svg`).
+  *  `contents/scripts/estado.sh`: Lector rápido de telemetría en POSIX shell (sin `sudo`, ejecutado cada `500 ms` con el popup abierto para cero latencia).
+  *  `contents/scripts/ally_center.py`: Backend Python con privilegios root (vía `sudoers`) para escritura en hardware y persistencia en el arranque.
+  *  `contents/scripts/ally_steam_bridge.py`: Demonio de usuario (`systemd --user`) que conecta vía WebSocket al puerto de depuración CEF de Steam (`localhost:8080`) para inyectar la interfaz de control en el menú rápido (`QuickAccess`) de Modo Juego sin depender de Decky Loader.
+  *  `contents/ui/main.qml`: Interfaz gráfica QML / Kirigami / PlasmaComponents.
 
 ---
 
