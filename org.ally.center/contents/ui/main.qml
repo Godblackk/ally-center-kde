@@ -340,6 +340,8 @@ PlasmoidItem {
                         onActivated: (index) => {
                             if (!root.tdpManual) {
                                 root.perfilEnergia = index
+                                let wattsBase = [13, 17, 25]
+                                root.tdpWatts = wattsBase[index]
                                 guardarConfig()
                                 aplicarTodoEnergia()
                             }
