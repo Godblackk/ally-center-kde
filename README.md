@@ -57,3 +57,12 @@ Si deseas eliminar por completo el widget, el servicio de arranque, los iconos y
 cd ~/ally-center-kde
 ./uninstall.sh
 ```
+
+## Compatibilidad con otras distribuciones
+
+Este widget esta disenado nativamente para **KDE Plasma 6** y funciona en cualquier distribucion Linux con kernel moderno (drivers `asus-armoury` y `asus_custom_fan_curve`):
+
+* **CachyOS / Arch Linux / EndeavourOS (KDE Plasma 6):** Soporte completo y nativo (`100%` recomendado).
+* **Bazzite (Edicion KDE Plasma):** Compatible. *Nota:* Bazzite incluye **Handheld Daemon (`hhd`)**; evita ajustar TDP o ventiladores desde `hhd` al mismo tiempo para que no sobrescriban los valores del widget.
+* **SteamOS (Modo Escritorio):** Compatible en versiones basadas en KDE Plasma 6. *Nota:* Tras una actualizacion mayor del sistema operativo, es posible que debas volver a ejecutar `./install.sh` si SteamOS restablece los archivos en `/etc/sudoers.d/` o `/etc/systemd/system/`. Asimismo, el deslizador de TDP nativo de Gamescope (`...` -> Rendimiento) tendra prioridad mientras este activo en Modo Juego.
+* **Ediciones con GNOME (ej. Bazzite GNOME):** No compatible, ya que es un plasmoide exclusivo de KDE Plasma 6.
