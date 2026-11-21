@@ -16,9 +16,9 @@ Centro de control nativo de energia, TDP, CPU Boost, limite de carga de bateria 
 - **Integración nativa en Steam Modo Juego (sin Decky Loader):** 
   - Inyecta directamente la tarjeta de control (con detección automática de **ROG Ally** o **ROG Ally X** e indicador **AC / BAT**) exclusivamente dentro de la pestaña de **Rendimiento (`...` → ⚡)** del menú rápido (`QuickAccess`) de Steam GamepadUI mediante CEF (`ally_steam_bridge.py`). 
   - Incluye **telemetría en tiempo real** (temperatura APU, consumo en Watts y RPM de ventiladores CPU/GPU)
-  - **menú desplegable de Perfiles de Energía** (`Ahorro`, `Equilibrado`, `Rendimiento`) sincronizado con el selector de Steam
-  - **toggle de Límite TDP Manual** con bloqueo mutuo, deslizador **7W – 30W** (tope dinámico 25W en batería)
-  - **presets rápidos (`13W`, `17W`, `25W`, `30W`)**, **CPU Boost** y **Curva de Ventiladores de 8 puntos**, con navegación completa mediante mando (cruceta D-Pad, salto automático de controles deshabilitados y botón A).
+  - **Menú desplegable de Perfiles de Energía** (`Ahorro`, `Equilibrado`, `Rendimiento`) sincronizado con el selector de Steam
+  - **Toggle de Límite TDP Manual** con bloqueo mutuo, deslizador **7W – 30W** (tope dinámico 25W en batería)
+  - **Presets rápidos (`13W`, `17W`, `25W`, `30W`)**, **CPU Boost** y **Curva de Ventiladores de 8 puntos**, con navegación completa mediante mando (cruceta D-Pad, salto automático de controles deshabilitados y botón A).
 
 - **Iconos dinamicos en la barra de tareas:** Cambia automaticamente segun el perfil activo (`leaf.svg` para Ahorro, `balance.svg` para Equilibrado, `rocket.svg` para Rendimiento y `manual.svg` para TDP Manual).
 - **Persistencia en el arranque y Modo Juego (`systemd`):** Guarda el estado en `/etc/ally-center.json` y restaura automaticamente TDP, perfil, CPU Boost, limite de bateria y curva de hardware al encender la consola mediante `ally-center.service` (compatible con inicio directo en Gamescope / SteamOS).
