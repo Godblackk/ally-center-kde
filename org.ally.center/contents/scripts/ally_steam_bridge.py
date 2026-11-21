@@ -239,24 +239,6 @@ JS_INJECT = """
             }
         }
 
-        const cambiarPerfil = (delta) => {
-            const actual = typeof estado.perfil === "number" ? estado.perfil : 1;
-            const nuevo = (actual + delta + 3) % 3;
-            estado.perfil = nuevo;
-            estado.tdp_manual = false;
-            const pMax = estado.ac_conectado ? "30W" : "25W";
-            const nombres = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${pMax})` };
-            perfilBadge.textContent = nombres[nuevo] + " ▾";
-            actualizarEstadoManual(false);
-            enviarComando({ cmd: "perfil", val: nuevo });
-        };
-
-        rowPerfil.onclick = () => cambiarPerfil(1);
-        rowPerfil.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " " || e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); cambiarPerfil(1); }
-            if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); cambiarPerfil(-1); }
-        });
-
         rowManual.onclick = () => actualizarEstadoManual(!estado.tdp_manual);
         rowManual.addEventListener("keydown", (e) => {
             if (e.key === "Enter" || e.key === " " || e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -403,7 +385,8 @@ JS_INJECT = """
         }
 
 
-        if (document.activeElement && !sec.contains(document.activeElement)) {
+        const menuAbierto = sec.querySelector("#ally-perfil-menu")?.style.display === "flex";
+        if (!menuAbierto && document.activeElement && !sec.contains(document.activeElement)) {
             sec.replaceWith(crearSeccionAlly());
         }
     }
