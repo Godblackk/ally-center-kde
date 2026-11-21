@@ -435,12 +435,45 @@ JS_INJECT = """
     }
 
     if (window.__allyTelTimer) clearInterval(window.__allyTelTimer);
+
+    let ultimoTextoSteamPerfil = null;
+
+    function sincronizarConDropdownSteam() {
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec || sec.offsetParent === null) return;
+
+        // Busca el botón nativo de Steam arriba que muestra low-power / balanced / performance
+        const botones = Array.from(document.querySelectorAll("button, div[role='button']")).filter(el => el.offsetParent !== null && !sec.contains(el));
+        const btnSteam = botones.find(el => /^(low-power|balanced|performance|ahorro|equilibrado|rendimiento|powersave)$/i.test(el.textContent.trim()));
+
+        if (btnSteam) {
+            const txt = btnSteam.textContent.trim().toLowerCase();
+            if (ultimoTextoSteamPerfil !== null && txt !== ultimoTextoSteamPerfil) {
+                let nuevoPerfil = null;
+                if (txt.includes("low") || txt.includes("ahorro") || txt.includes("save")) nuevoPerfil = 0;
+                else if (txt.includes("balanc") || txt.includes("equilibr")) nuevoPerfil = 1;
+                else if (txt.includes("perf") || txt.includes("rendim")) nuevoPerfil = 2;
+
+                if (nuevoPerfil !== null && nuevoPerfil !== estado.perfil) {
+                    estado.perfil = nuevoPerfil;
+                    ultimoPerfilKernel = nuevoPerfil;
+                    estado.tdp_manual = false;
+                    enviarComando({ cmd: "perfil", val: nuevoPerfil });
+                    actualizarUI();
+                }
+            }
+            ultimoTextoSteamPerfil = txt;
+        }
+    }
+
     window.__allyTelTimer = setInterval(() => {
         const sec = document.getElementById("ally-center-qam-section");
         if (sec && sec.offsetParent !== null) {
+            sincronizarConDropdownSteam();
             enviarComando({ cmd: "estado" });
         }
     }, 1500);
+
 
     window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
     window.__allyObs.observe(document.documentElement, { childList: true, subtree: true });
