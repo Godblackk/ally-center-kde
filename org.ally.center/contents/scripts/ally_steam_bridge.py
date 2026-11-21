@@ -218,7 +218,12 @@ JS_INJECT = """
                 if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); perfilMenu.style.display = "none"; rowPerfil.focus(); }
             });
         });
-    };
+
+        const rowManual = box.querySelector("#ally-row-manual-toggle");
+        const manualBadge = box.querySelector("#ally-manual-badge");
+        const manualBox = box.querySelector("#ally-manual-box");
+        aplicarEstiloFoco(rowManual);
+
 
         function actualizarEstadoManual(activo) {
             estado.tdp_manual = activo;
@@ -260,6 +265,12 @@ JS_INJECT = """
                 actualizarEstadoManual(!estado.tdp_manual);
             }
         });
+
+        const rowTdp = box.querySelector("#ally-row-tdp");
+        const tdpS = box.querySelector("#ally-tdp-slider");
+        aplicarEstiloFoco(rowTdp);
+        const setTdp = (n) => { const c = Math.max(7, Math.min(getMaxTdp(), n)); estado.tdp = c; tdpS.max = getMaxTdp(); tdpS.value = c; box.querySelector("#ally-tdp-val").textContent = c + " W"; enviarComando({ cmd: "tdp", val: c }); };
+
 
         tdpS.oninput = (e) => {
             estado.tdp = parseInt(e.target.value);
