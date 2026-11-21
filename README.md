@@ -21,7 +21,7 @@ Centro de control nativo de energia, TDP, CPU Boost, limite de carga de bateria 
   - **Presets rápidos (`13W`, `17W`, `25W`, `30W`)**, **CPU Boost** y **Curva de Ventiladores de 8 puntos**, con navegación completa mediante mando (cruceta D-Pad, salto automático de controles deshabilitados y botón A).
 
 - **Iconos dinamicos en la barra de tareas:** Cambia automaticamente segun el perfil activo (`leaf.svg` para Ahorro, `balance.svg` para Equilibrado, `rocket.svg` para Rendimiento y `manual.svg` para TDP Manual).
-- **Persistencia en el arranque y Modo Juego (`systemd`):** Guarda el estado en `/etc/ally-center.json` y restaura automaticamente TDP, perfil, CPU Boost, limite de bateria y curva de hardware al encender la consola mediante `ally-center.service` (compatible con inicio directo en Gamescope / SteamOS).
+- **Persistencia en el arranque y Modo Juego (`systemd`):** Guarda el estado en `/etc/ally-center.json`  y restaura automaticamente TDP, perfil, CPU Boost, limite de bateria y curva de hardware al encender la consola mediante `ally-center.service` (compatible con inicio directo en Gamescope / SteamOS).
 
 
 ## Instalación rápida (después de formatear o en un sistema limpio)
