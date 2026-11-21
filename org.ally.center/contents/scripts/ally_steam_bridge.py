@@ -7,6 +7,7 @@ import websockets
 import os
 
 SCRIPT_ALLY = os.path.expanduser("~/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py")
+SCRIPT_ESTADO = os.path.expanduser("~/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/estado.sh")
 
 
 def ejecutar_ally(args):
@@ -14,8 +15,16 @@ def ejecutar_ally(args):
     subprocess.run(cmd, capture_output=True, text=True)
 
 def leer_estado_str():
-    res = subprocess.run(["/usr/bin/python3", SCRIPT_ALLY, "estado"], capture_output=True, text=True)
-    return res.stdout.strip() or "{}"
+    res_sh = subprocess.run(["/bin/sh", SCRIPT_ESTADO], capture_output=True, text=True)
+    datos = json.loads(res_sh.stdout.strip() or "{}")
+    try:
+        with open("/etc/ally-center.json", "r") as f:
+            cfg = json.load(f)
+            if "curva" in cfg:
+                datos["curva"] = cfg["curva"]
+    except Exception:
+        pass
+    return json.dumps(datos)
 
 JS_INJECT = """
 (() => {
@@ -23,7 +32,15 @@ JS_INJECT = """
     if (window.__allyObs) window.__allyObs.disconnect();
 
     const TEMPS = Array.from({length: 8}, (_, i) => (i + 3) * 10);
-    let estado = { tdp: 25, boost: false, curva: Array.from({length: 8}, (_, i) => (i + 3) * 10), ac_conectado: true };
+    let estado = {
+        modelo: "Center ROG Ally X",
+        tdp: 25, boost: false,
+        curva: Array.from({length: 8}, (_, i) => (i + 3) * 10),
+        ac_conectado: true,
+        temp: "--", watts: "--", cpu_rpm: 0, gpu_rpm: 0
+    };
+
+
 
     window.__allyRecibirEstado = (jsonStr) => {
         try {
@@ -58,11 +75,33 @@ JS_INJECT = """
         box.id = "ally-center-qam-section";
         box.style.cssText = "margin: 14px 0; padding: 12px; background: #171a21; border-radius: 8px; border: 1px solid rgba(102,192,244,0.45); color: #fff; font-family: sans-serif; box-sizing: border-box; position: relative; z-index: 10;";
 
-        const maxTdp = estado.ac_conectado ? 30 : 25;
+        const getMaxTdp = () => estado.ac_conectado ? 30 : 25;
+        const maxTdp = getMaxTdp();
+
         let html = `
             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #66c0f4; text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                <span>⚡ Center ROG Ally X</span>
-                <span style="font-size: 11px; color: #8b929a;">${estado.ac_conectado ? "AC" : "BAT"}</span>
+                <span>⚡ <span id="ally-tel-modelo">${estado.modelo || "Center ROG Ally X"}</span></span>
+                <span id="ally-tel-ac" style="font-size: 11px; color: #8b929a;">${estado.ac_conectado ? "AC" : "BAT"}</span>
+            </div>
+
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(0,0,0,0.28); padding: 8px; border-radius: 6px; margin-bottom: 12px; font-size: 11px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #8b929a;">APU</span>
+                    <strong id="ally-tel-temp" style="color: #f5b041;">${estado.temp} °C</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #8b929a;">Consumo</span>
+                    <strong id="ally-tel-watts" style="color: #58d68d;">${estado.watts} W</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #8b929a;">CPU Fan</span>
+                    <strong id="ally-tel-cpu" style="color: #d6eaf8;">${estado.cpu_rpm} RPM</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #8b929a;">GPU Fan</span>
+                    <strong id="ally-tel-gpu" style="color: #d6eaf8;">${estado.gpu_rpm} RPM</strong>
+                </div>
             </div>
 
             <div id="ally-row-tdp" style="margin-bottom: 10px;">
@@ -102,14 +141,17 @@ JS_INJECT = """
         aplicarEstiloFoco(rowTdp);
 
         const setTdp = (nuevo) => {
-            const clamped = Math.max(7, Math.min(maxTdp, nuevo));
+            const maxActual = getMaxTdp();
+            const clamped = Math.max(7, Math.min(maxActual, nuevo));
             if (clamped !== estado.tdp) {
-                estado.tdp = clamped;
-                tdpS.value = clamped;
-                box.querySelector("#ally-tdp-val").textContent = clamped + " W";
-                enviarComando({ cmd: "tdp", val: clamped });
+            estado.tdp = clamped;
+            tdpS.max = maxActual;
+            tdpS.value = clamped;
+            box.querySelector("#ally-tdp-val").textContent = clamped + " W";
+            enviarComando({ cmd: "tdp", val: clamped });
             }
         };
+
 
         tdpS.oninput = (e) => {
             estado.tdp = parseInt(e.target.value);
@@ -175,11 +217,42 @@ JS_INJECT = """
     }
 
     function actualizarUI() {
-        const existente = document.getElementById("ally-center-qam-section");
-        if (existente && document.activeElement && !existente.contains(document.activeElement)) {
-            existente.replaceWith(crearSeccionAlly());
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec) return;
+
+        // 1. Actualiza modelo, AC/BAT y telemetría en vivo sin reconstruir la tarjeta
+        const elModelo = sec.querySelector("#ally-tel-modelo");
+        const elAc = sec.querySelector("#ally-tel-ac");
+        const elTemp = sec.querySelector("#ally-tel-temp");
+        const elWatts = sec.querySelector("#ally-tel-watts");
+        const elCpu = sec.querySelector("#ally-tel-cpu");
+        const elGpu = sec.querySelector("#ally-tel-gpu");
+
+        if (elModelo && estado.modelo) elModelo.textContent = estado.modelo;
+        if (elAc) elAc.textContent = estado.ac_conectado ? "AC" : "BAT";
+        if (elTemp) elTemp.textContent = `${estado.temp ?? "--"} °C`;
+        if (elWatts) elWatts.textContent = `${estado.watts ?? "--"} W`;
+        if (elCpu) elCpu.textContent = `${estado.cpu_rpm ?? 0} RPM`;
+        if (elGpu) elGpu.textContent = `${estado.gpu_rpm ?? 0} RPM`;
+
+        // 2. Actualiza el tope dinámico (25W BAT / 30W AC) y valor del slider sin perder el foco
+        const tdpS = sec.querySelector("#ally-tdp-slider");
+        const tdpVal = sec.querySelector("#ally-tdp-val");
+        if (tdpS && tdpVal) {
+            const maxActual = estado.ac_conectado ? 30 : 25;
+            tdpS.max = maxActual;
+            if (estado.tdp > maxActual) estado.tdp = maxActual;
+            tdpS.value = estado.tdp;
+            tdpVal.textContent = `${estado.tdp} W`;
+        }
+
+        // 3. Solo reconstruye el resto si el usuario no tiene el foco adentro
+        if (document.activeElement && !sec.contains(document.activeElement)) {
+            sec.replaceWith(crearSeccionAlly());
         }
     }
+
+
 
     function intentarMontarEnRendimiento() {
         if (!document.body || document.getElementById("ally-center-qam-section")) return;
@@ -212,6 +285,14 @@ JS_INJECT = """
             }
         }
     }
+
+    if (window.__allyTelTimer) clearInterval(window.__allyTelTimer);
+    window.__allyTelTimer = setInterval(() => {
+        const sec = document.getElementById("ally-center-qam-section");
+        if (sec && sec.offsetParent !== null) {
+            enviarComando({ cmd: "estado" });
+        }
+    }, 1500);
 
 
     window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
