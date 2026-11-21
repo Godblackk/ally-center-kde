@@ -49,6 +49,7 @@ JS_INJECT = """
         cpu_rpm: 0,
         gpu_rpm: 0
     };
+    let ultimoPerfilKernel = null;
 
     window.__allyRecibirEstado = (jsonStr) => {
         try {
@@ -115,11 +116,18 @@ JS_INJECT = """
                 </div>
             </div>
 
-            <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 10px; cursor: pointer;">
-                <span>Perfil Energía</span>
-                <span id="ally-perfil-badge" style="background: #2a475e; border: 1px solid #66c0f4; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 600; font-size: 12px;">
-                    ${textoPerfil} ▾
-                </span>
+            <div style="position: relative; margin-bottom: 10px;">
+                <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; cursor: pointer;">
+                    <span>Perfil Energía</span>
+                    <span id="ally-perfil-badge" style="background: #2a475e; border: 1px solid #66c0f4; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 600; font-size: 12px;">
+                        ${textoPerfil} ▾
+                    </span>
+                </div>
+                <div id="ally-perfil-menu" style="display: none; flex-direction: column; gap: 4px; margin-top: 6px; background: #0e141b; border: 1px solid #66c0f4; border-radius: 6px; padding: 6px;">
+                    <div class="ally-perfil-opt" data-val="0" style="padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">Ahorro (13W)</div>
+                    <div class="ally-perfil-opt" data-val="1" style="padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">Equilibrado (17W)</div>
+                    <div class="ally-perfil-opt" data-val="2" style="padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">Rendimiento (${perfMax})</div>
+                </div>
             </div>
 
             <div id="ally-row-manual-toggle" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 8px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; cursor: pointer;">
@@ -171,27 +179,46 @@ JS_INJECT = """
 
         const rowPerfil = box.querySelector("#ally-row-perfil");
         const perfilBadge = box.querySelector("#ally-perfil-badge");
+        const perfilMenu = box.querySelector("#ally-perfil-menu");
         aplicarEstiloFoco(rowPerfil);
 
-        const rowManual = box.querySelector("#ally-row-manual-toggle");
-        const manualBadge = box.querySelector("#ally-manual-badge");
-        const manualBox = box.querySelector("#ally-manual-box");
-        aplicarEstiloFoco(rowManual);
-                const rowTdp = box.querySelector("#ally-row-tdp");
-        const tdpS = box.querySelector("#ally-tdp-slider");
-        aplicarEstiloFoco(rowTdp);
+        const seleccionarPerfil = (nuevo) => {
+            estado.perfil = nuevo;
+            ultimoPerfilKernel = nuevo;
+            estado.tdp_manual = false;
+            const pMax = estado.ac_conectado ? "30W" : "25W";
+            const nombres = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${pMax})` };
+            perfilBadge.textContent = nombres[nuevo] + " ▾";
+            perfilMenu.style.display = "none";
+            actualizarEstadoManual(false);
+            enviarComando({ cmd: "perfil", val: nuevo });
+            rowPerfil.focus();
+        };
 
-        const setTdp = (nuevo) => {
-            const maxActual = getMaxTdp();
-            const clamped = Math.max(7, Math.min(maxActual, nuevo));
-            if (clamped !== estado.tdp) {
-                estado.tdp = clamped;
-                tdpS.max = maxActual;
-                tdpS.value = clamped;
-                box.querySelector("#ally-tdp-val").textContent = clamped + " W";
-                enviarComando({ cmd: "tdp", val: clamped });
+        const toggleMenuPerfil = () => {
+            const abierto = perfilMenu.style.display === "flex";
+            perfilMenu.style.display = abierto ? "none" : "flex";
+            if (!abierto) {
+                const actualOpt = perfilMenu.querySelector(`.ally-perfil-opt[data-val="${estado.perfil ?? 1}"]`) || perfilMenu.firstElementChild;
+                actualOpt?.focus();
             }
         };
+
+        rowPerfil.onclick = toggleMenuPerfil;
+        rowPerfil.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggleMenuPerfil(); }
+        });
+
+        perfilMenu.querySelectorAll(".ally-perfil-opt").forEach(opt => {
+            aplicarEstiloFoco(opt);
+            const val = parseInt(opt.dataset.val);
+            opt.onclick = () => seleccionarPerfil(val);
+            opt.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); seleccionarPerfil(val); }
+                if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); perfilMenu.style.display = "none"; rowPerfil.focus(); }
+            });
+        });
+    };
 
         function actualizarEstadoManual(activo) {
             estado.tdp_manual = activo;
@@ -344,6 +371,26 @@ JS_INJECT = """
             tdpS.value = estado.tdp;
             tdpVal.textContent = `${estado.tdp} W`;
         }
+        // Detecta si Steam arriba cambió el perfil ACPI del kernel (low-power / balanced / performance)
+        if (typeof estado.perfil === "number") {
+            if (ultimoPerfilKernel !== null && estado.perfil !== ultimoPerfilKernel) {
+                estado.tdp_manual = false;
+                const mBadge = sec.querySelector("#ally-manual-badge");
+                const mBox = sec.querySelector("#ally-manual-box");
+                if (mBadge) {
+                    mBadge.textContent = "OFF";
+                    mBadge.style.background = "#2a475e";
+                    mBadge.style.color = "#fff";
+                }
+                if (mBox) {
+                    mBox.style.opacity = "0.4";
+                    mBox.style.pointerEvents = "none";
+                }
+                enviarComando({ cmd: "perfil", val: estado.perfil });
+            }
+            ultimoPerfilKernel = estado.perfil;
+        }
+
 
         if (document.activeElement && !sec.contains(document.activeElement)) {
             sec.replaceWith(crearSeccionAlly());
