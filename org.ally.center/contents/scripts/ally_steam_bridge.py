@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import asyncio
 import json
+import os
 import subprocess
 import urllib.request
 import websockets
-import os
 
 SCRIPT_ALLY = os.path.expanduser("~/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py")
 SCRIPT_ESTADO = os.path.expanduser("~/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/estado.sh")
@@ -14,6 +14,7 @@ def ejecutar_ally(args):
     cmd = ["sudo", "/usr/bin/python3", SCRIPT_ALLY] + args
     subprocess.run(cmd, capture_output=True, text=True)
 
+
 def leer_estado_str():
     res_sh = subprocess.run(["/bin/sh", SCRIPT_ESTADO], capture_output=True, text=True)
     datos = json.loads(res_sh.stdout.strip() or "{}")
@@ -22,9 +23,12 @@ def leer_estado_str():
             cfg = json.load(f)
             if "curva" in cfg:
                 datos["curva"] = cfg["curva"]
+            if "tdp_manual" in cfg:
+                datos["tdp_manual"] = cfg["tdp_manual"]
     except Exception:
         pass
     return json.dumps(datos)
+
 
 JS_INJECT = """
 (() => {
@@ -34,13 +38,17 @@ JS_INJECT = """
     const TEMPS = Array.from({length: 8}, (_, i) => (i + 3) * 10);
     let estado = {
         modelo: "Center ROG Ally X",
-        tdp: 25, boost: false,
+        perfil: 1,
+        tdp_manual: false,
+        tdp: 25,
+        boost: false,
         curva: Array.from({length: 8}, (_, i) => (i + 3) * 10),
         ac_conectado: true,
-        temp: "--", watts: "--", cpu_rpm: 0, gpu_rpm: 0
+        temp: "--",
+        watts: "--",
+        cpu_rpm: 0,
+        gpu_rpm: 0
     };
-
-
 
     window.__allyRecibirEstado = (jsonStr) => {
         try {
@@ -77,13 +85,16 @@ JS_INJECT = """
 
         const getMaxTdp = () => estado.ac_conectado ? 30 : 25;
         const maxTdp = getMaxTdp();
+        const perfMax = estado.ac_conectado ? "30W" : "25W";
+        const nombresPerfil = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${perfMax})` };
+        const textoPerfil = nombresPerfil[estado.perfil] ?? "Equilibrado (17W)";
+        const manualActivo = Boolean(estado.tdp_manual);
 
         let html = `
             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #66c0f4; text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                 <span>⚡ <span id="ally-tel-modelo">${estado.modelo || "Center ROG Ally X"}</span></span>
                 <span id="ally-tel-ac" style="font-size: 11px; color: #8b929a;">${estado.ac_conectado ? "AC" : "BAT"}</span>
             </div>
-
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(0,0,0,0.28); padding: 8px; border-radius: 6px; margin-bottom: 12px; font-size: 11px;">
                 <div style="display: flex; justify-content: space-between;">
@@ -104,15 +115,38 @@ JS_INJECT = """
                 </div>
             </div>
 
-            <div id="ally-row-tdp" style="margin-bottom: 10px;">
-                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
-                    <span>Límite TDP</span>
-                    <strong id="ally-tdp-val" style="color: #66c0f4; flex-shrink: 0;">${estado.tdp} W</strong>
-                </div>
-                <input id="ally-tdp-slider" type="range" min="7" max="${maxTdp}" value="${estado.tdp}" style="width: 100%; accent-color: #66c0f4; cursor: pointer;">
+            <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 10px; cursor: pointer;">
+                <span>Perfil Energía</span>
+                <span id="ally-perfil-badge" style="background: #2a475e; border: 1px solid #66c0f4; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 600; font-size: 12px;">
+                    ${textoPerfil} ▾
+                </span>
             </div>
 
-            <div id="ally-row-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 10px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div id="ally-row-manual-toggle" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 8px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; cursor: pointer;">
+                <span>Límite TDP Manual</span>
+                <span id="ally-manual-badge" style="background: ${manualActivo ? "#66c0f4" : "#2a475e"}; color: ${manualActivo ? "#0e141b" : "#fff"}; border-radius: 4px; padding: 3px 10px; font-weight: bold; font-size: 11px;">
+                    ${manualActivo ? "ON" : "OFF"}
+                </span>
+            </div>
+
+            <div id="ally-manual-box" style="opacity: ${manualActivo ? "1" : "0.4"}; pointer-events: ${manualActivo ? "auto" : "none"}; margin-bottom: 10px; transition: opacity 0.15s;">
+                <div id="ally-row-tdp" style="margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                        <span>Límite TDP</span>
+                        <strong id="ally-tdp-val" style="color: #66c0f4; flex-shrink: 0;">${estado.tdp} W</strong>
+                    </div>
+                    <input id="ally-tdp-slider" type="range" min="7" max="${maxTdp}" value="${estado.tdp}" style="width: 100%; accent-color: #66c0f4; cursor: pointer;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+                    <button class="ally-preset-btn" data-w="13" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; cursor:pointer;">13W</button>
+                    <button class="ally-preset-btn" data-w="17" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; cursor:pointer;">17W</button>
+                    <button class="ally-preset-btn" data-w="25" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; cursor:pointer;">25W</button>
+                    <button id="ally-preset-30" class="ally-preset-btn" data-w="30" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; cursor:pointer; display:${estado.ac_conectado ? "block" : "none"};">30W</button>
+                </div>
+            </div>
+
+            <div id="ally-row-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 10px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer;">
                 <span>CPU Boost</span>
                 <span id="ally-boost-badge" style="background: ${estado.boost ? "#66c0f4" : "#2a475e"}; color: ${estado.boost ? "#0e141b" : "#fff"}; border-radius: 4px; padding: 3px 10px; font-weight: bold; font-size: 11px;">
                     ${estado.boost ? "ON" : "OFF"}
@@ -135,8 +169,15 @@ JS_INJECT = """
 
         box.innerHTML = html;
 
-        // Control TDP (táctil + cruceta)
-        const rowTdp = box.querySelector("#ally-row-tdp");
+        const rowPerfil = box.querySelector("#ally-row-perfil");
+        const perfilBadge = box.querySelector("#ally-perfil-badge");
+        aplicarEstiloFoco(rowPerfil);
+
+        const rowManual = box.querySelector("#ally-row-manual-toggle");
+        const manualBadge = box.querySelector("#ally-manual-badge");
+        const manualBox = box.querySelector("#ally-manual-box");
+        aplicarEstiloFoco(rowManual);
+                const rowTdp = box.querySelector("#ally-row-tdp");
         const tdpS = box.querySelector("#ally-tdp-slider");
         aplicarEstiloFoco(rowTdp);
 
@@ -144,14 +185,54 @@ JS_INJECT = """
             const maxActual = getMaxTdp();
             const clamped = Math.max(7, Math.min(maxActual, nuevo));
             if (clamped !== estado.tdp) {
-            estado.tdp = clamped;
-            tdpS.max = maxActual;
-            tdpS.value = clamped;
-            box.querySelector("#ally-tdp-val").textContent = clamped + " W";
-            enviarComando({ cmd: "tdp", val: clamped });
+                estado.tdp = clamped;
+                tdpS.max = maxActual;
+                tdpS.value = clamped;
+                box.querySelector("#ally-tdp-val").textContent = clamped + " W";
+                enviarComando({ cmd: "tdp", val: clamped });
             }
         };
 
+        function actualizarEstadoManual(activo) {
+            estado.tdp_manual = activo;
+            manualBadge.textContent = activo ? "ON" : "OFF";
+            manualBadge.style.background = activo ? "#66c0f4" : "#2a475e";
+            manualBadge.style.color = activo ? "#0e141b" : "#fff";
+            manualBox.style.opacity = activo ? "1" : "0.4";
+            manualBox.style.pointerEvents = activo ? "auto" : "none";
+            if (activo) {
+                enviarComando({ cmd: "tdp", val: estado.tdp });
+            } else {
+                enviarComando({ cmd: "perfil", val: estado.perfil ?? 1 });
+            }
+        }
+
+        const cambiarPerfil = (delta) => {
+            const actual = typeof estado.perfil === "number" ? estado.perfil : 1;
+            const nuevo = (actual + delta + 3) % 3;
+            estado.perfil = nuevo;
+            estado.tdp_manual = false;
+            const pMax = estado.ac_conectado ? "30W" : "25W";
+            const nombres = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${pMax})` };
+            perfilBadge.textContent = nombres[nuevo] + " ▾";
+            actualizarEstadoManual(false);
+            enviarComando({ cmd: "perfil", val: nuevo });
+        };
+
+        rowPerfil.onclick = () => cambiarPerfil(1);
+        rowPerfil.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " " || e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); cambiarPerfil(1); }
+            if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); cambiarPerfil(-1); }
+        });
+
+        rowManual.onclick = () => actualizarEstadoManual(!estado.tdp_manual);
+        rowManual.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " " || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+                e.preventDefault();
+                e.stopPropagation();
+                actualizarEstadoManual(!estado.tdp_manual);
+            }
+        });
 
         tdpS.oninput = (e) => {
             estado.tdp = parseInt(e.target.value);
@@ -163,7 +244,18 @@ JS_INJECT = """
             if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setTdp(estado.tdp + 1); }
         });
 
-        // Control CPU Boost (táctil + botón A / cruceta)
+        box.querySelectorAll(".ally-preset-btn").forEach(btn => {
+            aplicarEstiloFoco(btn);
+            const aplicarPreset = () => {
+                if (!estado.tdp_manual) actualizarEstadoManual(true);
+                setTdp(parseInt(btn.dataset.w));
+            };
+            btn.onclick = aplicarPreset;
+            btn.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); aplicarPreset(); }
+            });
+        });
+
         const rowBoost = box.querySelector("#ally-row-boost");
         const badge = box.querySelector("#ally-boost-badge");
         aplicarEstiloFoco(rowBoost);
@@ -185,7 +277,6 @@ JS_INJECT = """
             }
         });
 
-        // Control Curva Ventiladores (táctil + cruceta)
         box.querySelectorAll(".ally-row-fan").forEach(row => {
             aplicarEstiloFoco(row);
             const idx = parseInt(row.dataset.idx);
@@ -220,7 +311,6 @@ JS_INJECT = """
         const sec = document.getElementById("ally-center-qam-section");
         if (!sec) return;
 
-        // 1. Actualiza modelo, AC/BAT y telemetría en vivo sin reconstruir la tarjeta
         const elModelo = sec.querySelector("#ally-tel-modelo");
         const elAc = sec.querySelector("#ally-tel-ac");
         const elTemp = sec.querySelector("#ally-tel-temp");
@@ -235,7 +325,16 @@ JS_INJECT = """
         if (elCpu) elCpu.textContent = `${estado.cpu_rpm ?? 0} RPM`;
         if (elGpu) elGpu.textContent = `${estado.gpu_rpm ?? 0} RPM`;
 
-        // 2. Actualiza el tope dinámico (25W BAT / 30W AC) y valor del slider sin perder el foco
+        const perfilBadge = sec.querySelector("#ally-perfil-badge");
+        if (perfilBadge) {
+            const pMax = estado.ac_conectado ? "30W" : "25W";
+            const nombres = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${pMax})` };
+            perfilBadge.textContent = (nombres[estado.perfil] ?? "Equilibrado (17W)") + " ▾";
+        }
+
+        const preset30 = sec.querySelector("#ally-preset-30");
+        if (preset30) preset30.style.display = estado.ac_conectado ? "block" : "none";
+
         const tdpS = sec.querySelector("#ally-tdp-slider");
         const tdpVal = sec.querySelector("#ally-tdp-val");
         if (tdpS && tdpVal) {
@@ -246,29 +345,37 @@ JS_INJECT = """
             tdpVal.textContent = `${estado.tdp} W`;
         }
 
-        // 3. Solo reconstruye el resto si el usuario no tiene el foco adentro
         if (document.activeElement && !sec.contains(document.activeElement)) {
             sec.replaceWith(crearSeccionAlly());
         }
     }
 
-
-
     function intentarMontarEnRendimiento() {
-        if (!document.body || document.getElementById("ally-center-qam-section")) return;
+        if (!document.body) return;
 
-        // 1. Busca primero por textos conocidos (ES / EN / PT / FR / DE / IT)
         const textos = Array.from(document.querySelectorAll("div, span, button")).filter(el => el.offsetParent !== null);
+        const enPestanaRendimiento = textos.some(el =>
+            el.children.length === 0 &&
+            /^(RENDIMIENTO|PERFORMANCE|DESEMPENHO|PRESTAZIONI|LEISTUNG)$/i.test(el.textContent.trim())
+        );
+
+        const existente = document.getElementById("ally-center-qam-section");
+        if (!enPestanaRendimiento) {
+            if (existente) existente.remove();
+            return;
+        }
+
+        if (existente) return;
+
         let ancla = textos.find(el =>
             el.children.length === 0 &&
             /^(Utilizando perfil de rendimiento personalizado|Vista avanzada|Advanced View|Visualização avançada|Vue avancée|Erweiterte Ansicht|Vista avanzata)$/i.test(el.textContent.trim())
         );
 
-        // 2. Respaldo universal independiente del idioma: detecta los sliders nativos de la pestaña Rendimiento
         if (!ancla) {
             const slidersVisibles = Array.from(document.querySelectorAll('input[type="range"], [role="slider"]'))
                 .filter(el => el.offsetParent !== null && !el.closest("#ally-center-qam-section"));
-            if (slidersVisibles.length >= 2) {
+            if (slidersVisibles.length >= 1) {
                 ancla = slidersVisibles[slidersVisibles.length - 1];
             }
         }
@@ -294,12 +401,13 @@ JS_INJECT = """
         }
     }, 1500);
 
-
     window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
+        window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
     window.__allyObs.observe(document.documentElement, { childList: true, subtree: true });
     intentarMontarEnRendimiento();
 })();
 """
+
 
 async def manejar_target(ws_url):
     try:
@@ -320,6 +428,8 @@ async def manejar_target(ws_url):
                             "method": "Runtime.evaluate",
                             "params": {"expression": f"window.__allyRecibirEstado({json.dumps(est)})"}
                         }))
+                    elif cmd == "perfil":
+                        ejecutar_ally(["perfil", str(int(payload["val"]))])
                     elif cmd == "tdp":
                         ejecutar_ally(["tdp", str(int(payload["val"]))])
                     elif cmd == "boost":
@@ -327,7 +437,6 @@ async def manejar_target(ws_url):
                     elif cmd == "curva":
                         pts_csv = ",".join(str(int(x)) for x in payload["val"])
                         ejecutar_ally(["guardar_curva", pts_csv])
-
     except Exception:
         pass
 
@@ -352,5 +461,4 @@ async def bucle_principal():
 
 if __name__ == "__main__":
     asyncio.run(bucle_principal())
-
 
