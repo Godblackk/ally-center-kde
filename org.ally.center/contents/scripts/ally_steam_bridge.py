@@ -184,11 +184,21 @@ JS_INJECT = """
     function intentarMontarEnRendimiento() {
         if (!document.body || document.getElementById("ally-center-qam-section")) return;
 
+        // 1. Busca primero por textos conocidos (ES / EN / PT / FR / DE / IT)
         const textos = Array.from(document.querySelectorAll("div, span, button")).filter(el => el.offsetParent !== null);
-        const ancla = textos.find(el =>
+        let ancla = textos.find(el =>
             el.children.length === 0 &&
-            /^(Utilizando perfil de rendimiento personalizado|Vista avanzada|Advanced View)$/i.test(el.textContent.trim())
+            /^(Utilizando perfil de rendimiento personalizado|Vista avanzada|Advanced View|Visualização avançada|Vue avancée|Erweiterte Ansicht|Vista avanzata)$/i.test(el.textContent.trim())
         );
+
+        // 2. Respaldo universal independiente del idioma: detecta los sliders nativos de la pestaña Rendimiento
+        if (!ancla) {
+            const slidersVisibles = Array.from(document.querySelectorAll('input[type="range"], [role="slider"]'))
+                .filter(el => el.offsetParent !== null && !el.closest("#ally-center-qam-section"));
+            if (slidersVisibles.length >= 2) {
+                ancla = slidersVisibles[slidersVisibles.length - 1];
+            }
+        }
 
         if (ancla) {
             let fila = ancla;
@@ -202,6 +212,7 @@ JS_INJECT = """
             }
         }
     }
+
 
     window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
     window.__allyObs.observe(document.documentElement, { childList: true, subtree: true });
