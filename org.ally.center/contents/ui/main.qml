@@ -49,6 +49,29 @@ PlasmoidItem {
     property int cpuRpm: 0
     property int gpuRpm: 0
     property int cpuTemp: 0
+    property string rgbModo: "fijo"
+    property int rgbR: 255
+    property int rgbG: 0
+    property int rgbB: 60
+    property int rgbBrillo: 80
+    property int rgbBrilloPrevio: 80
+
+    function aplicarRgb() {
+        pausarSync()
+        ejecutarComando("rgb " + root.rgbModo + " " + root.rgbR + " " + root.rgbG + " " + root.rgbB + " " + root.rgbBrillo)
+    }
+
+    Timer {
+        id: timerRgbLive
+        interval: 60
+        onTriggered: ejecutarComando("rgb_live " + root.rgbModo + " " + root.rgbR + " " + root.rgbG + " " + root.rgbB + " " + root.rgbBrillo)
+    }
+
+    function aplicarRgbEnVivo() {
+        pausarSync()
+        if (!timerRgbLive.running) timerRgbLive.start()
+    }
+
 
     property string scriptPath: StandardPaths.writableLocation(StandardPaths.GenericDataLocation) + "/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py"
 
@@ -134,6 +157,12 @@ PlasmoidItem {
                             if (info.modo_fan !== undefined) {
                                 root.modoActual = (info.modo_fan === "auto") ? 0 : (info.modo_fan === "manual" ? 1 : 2)
                             }
+                            if (info.rgb_modo !== undefined) root.rgbModo = info.rgb_modo
+                            if (info.rgb && info.rgb.length === 3) {
+                                    root.rgbR = info.rgb[0]; root.rgbG = info.rgb[1]; root.rgbB = info.rgb[2]
+                            }
+                            if (info.rgb_brillo !== undefined) root.rgbBrillo = info.rgb_brillo
+
                         }
 
                         if (info.ac_conectado !== undefined) {
@@ -214,10 +243,14 @@ PlasmoidItem {
 
     Timer {
         interval: 2000
-        running: root.expanded || root.modoActual === 2
+        running: root.expanded || root.modoActual === 2 || root.rgbModo !== "fijo"
         repeat: true
         triggeredOnStart: true
-        onTriggered: ejecutarComando("estado")
+        onTriggered: {
+            ejecutarComando("estado")
+            if (root.rgbModo !== "fijo" && root.rgbBrillo > 0) ejecutarComando("rgb_tick")
+        }
+
     }
 
     compactRepresentation: Kirigami.Icon {
@@ -236,8 +269,9 @@ PlasmoidItem {
         Layout.minimumWidth: Kirigami.Units.gridUnit * 18
         Layout.preferredWidth: Kirigami.Units.gridUnit * 19
         Layout.minimumHeight: root.tabActual === 0 ? Kirigami.Units.gridUnit * 17.5 :
+        (root.tabActual === 2 ? (root.rgbModo === "fijo" ? Kirigami.Units.gridUnit * 20.5 : Kirigami.Units.gridUnit * 14.5) :
         (root.modoActual === 0 ? Kirigami.Units.gridUnit * 11.5 :
-        (root.modoActual === 1 ? Kirigami.Units.gridUnit * 17.5 : Kirigami.Units.gridUnit * 21.5))
+        (root.modoActual === 1 ? Kirigami.Units.gridUnit * 17.5 : Kirigami.Units.gridUnit * 21.5)))
         Layout.preferredHeight: Layout.minimumHeight
 
 
@@ -302,7 +336,7 @@ PlasmoidItem {
 
             }
 
-            // Selector de 2 Pestañas
+            // Selector de 3 Pestañas
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 4
@@ -330,6 +364,18 @@ PlasmoidItem {
                         if (root.modoActual === 2 && root.vistaCurva === 0) graficoCanvas.requestPaint()
                     }
                 }
+                PlasmaComponents.Button {
+                    text: "RGB"
+                    icon.name: "color-management"
+                    font.pointSize: 8
+                    Layout.fillWidth: true
+                    highlighted: root.tabActual === 2
+                    onClicked: {
+                        root.tabActual = 2
+                        guardarConfig()
+                    }
+                }
+
             }
 
 
@@ -468,13 +514,14 @@ PlasmoidItem {
                     model: Array("Automático (BIOS)", "Manual (Perfiles)", "Curva Personalizada")
                     currentIndex: root.modoActual
                     onActivated: (index) => {
+                        pausarSync()
                         root.modoActual = index
                         guardarConfig()
                         if (index === 0) {
                             ejecutarComando("auto")
                         } else if (index === 1) {
                             if (root.vincularFans) {
-                                ejecutarComando("ambos " + root.velAmbos)
+                                ejecutarComando("ambos " + root.velAmbos + " guardar")
                             } else {
                                 ejecutarComando("cpu_fan " + root.velCpu)
                                 ejecutarComando("gpu_fan " + root.velGpu)
@@ -870,8 +917,6 @@ PlasmoidItem {
                         }
                     }
                 }
-
-
                 // VISTA B: DESLIZADORES EN CASCADA
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -884,7 +929,7 @@ PlasmoidItem {
                             Layout.fillWidth: true
                             spacing: 4
                             PlasmaComponents.Label {
-                                text: root.curvaTemps[index] + "°C"
+                                text: root.curvaTemps[index] + " °C"
                                 font.pointSize: 8
                                 Layout.preferredWidth: Kirigami.Units.gridUnit * 2.3
                                 font.bold: true
@@ -907,7 +952,160 @@ PlasmoidItem {
                     }
                 }
             }
-            }
+        }
+
+                // PESTAÑA 3: ILUMINACIÓN RGB
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    visible: root.tabActual === 2
+                    spacing: Kirigami.Units.smallSpacing
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        PlasmaComponents.Switch {
+                            text: "Iluminación Joysticks"
+                            font.pointSize: 9
+                            Layout.fillWidth: true
+                            checked: root.rgbBrillo > 0
+                            onToggled: {
+                                if (checked) {
+                                    root.rgbBrillo = root.rgbBrilloPrevio > 0 ? root.rgbBrilloPrevio : 80
+                                } else {
+                                    root.rgbBrilloPrevio = root.rgbBrillo
+                                    root.rgbBrillo = 0
+                                }
+                                root.aplicarRgb()
+                            }
+                        }
+                        Rectangle {
+                            width: 22; height: 22; radius: 11
+                            color: {
+                                if (root.rgbBrillo === 0) return "#222222"
+                                    if (root.rgbModo === "temp") {
+                                        if (root.cpuTemp < 55) return Qt.rgba(0, 210/255, 1, 1)
+                                            if (root.cpuTemp < 72) return Qt.rgba(40/255, 230/255, 90/255, 1)
+                                                if (root.cpuTemp < 84) return Qt.rgba(1, 110/255, 0, 1)
+                                                    return Qt.rgba(1, 15/255, 15/255, 1)
+                                    }
+                                    if (root.rgbModo === "hora") {
+                                        let h = new Date().getHours()
+                                        if (h >= 7 && h < 13) return Qt.rgba(1, 235/255, 195/255, 1)
+                                            if (h >= 13 && h < 20) return Qt.rgba(0, 210/255, 1, 1)
+                                                return Qt.rgba(1, 35/255, 20/255, 1)
+                                    }
+                                    if (root.rgbModo === "bateria") return Qt.rgba(35/255, 225/255, 85/255, 1)
+                                        return Qt.rgba(root.rgbR / 255, root.rgbG / 255, root.rgbB / 255, 1)
+                            }
+                            border.color: "#ffffff"; border.width: 1.5
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        enabled: root.rgbBrillo > 0
+                        opacity: root.rgbBrillo > 0 ? 1.0 : 0.45
+                        PlasmaComponents.Label { text: "Modo"; font.pointSize: 9; Layout.fillWidth: true }
+                        PlasmaComponents.ComboBox {
+                            font.pointSize: 8.5
+                            model: Array("Fijo (Color)", "Temperatura APU", "Nivel Batería", "Ciclo Horario")
+                            currentIndex: root.rgbModo === "temp" ? 1 : (root.rgbModo === "bateria" ? 2 : (root.rgbModo === "hora" ? 3 : 0))
+                            onActivated: (index) => {
+                                root.rgbModo = (index === 1) ? "temp" : ((index === 2) ? "bateria" : ((index === 3) ? "hora" : "fijo"))
+                                root.aplicarRgb()
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        enabled: root.rgbBrillo > 0
+                        opacity: root.rgbBrillo > 0 ? 1.0 : 0.45
+                        spacing: 0
+                        RowLayout {
+                            Layout.fillWidth: true
+                            PlasmaComponents.Label { text: "Brillo"; font.pointSize: 9; Layout.fillWidth: true }
+                            PlasmaComponents.Label { text: root.rgbBrillo + "%"; font.pointSize: 9; font.bold: true }
+                        }
+                        PlasmaComponents.Slider {
+                            Layout.fillWidth: true
+                            from: 5; to: 100; stepSize: 5
+                            value: Math.max(5, root.rgbBrillo)
+                            onMoved: {
+                                root.rgbBrillo = value
+                                root.aplicarRgbEnVivo()
+                            }
+                            onPressedChanged: if (!pressed) {
+                                root.rgbBrilloPrevio = root.rgbBrillo
+                                root.aplicarRgb()
+                            }
+                        }
+                    }
+
+                    // Controles de color (solo visibles en modo Fijo)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: root.rgbModo === "fijo"
+                        enabled: root.rgbBrillo > 0 && root.rgbModo === "fijo"
+                        opacity: root.rgbBrillo > 0 ? 1.0 : 0.45
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Separator { Layout.fillWidth: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Repeater {
+                                model: Array(
+                                    { r: 255, g: 0, b: 0 },
+                                    { r: 0, g: 210, b: 255 },
+                                    { r: 165, g: 40, b: 255 },
+                                    { r: 30, g: 230, b: 90 },
+                                    { r: 255, g: 110, b: 0 },
+                                    { r: 255, g: 215, b: 0 },
+                                    { r: 255, g: 255, b: 255 }
+                                )
+                                delegate: Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 22; radius: 6
+                                    color: Qt.rgba(modelData.r / 255, modelData.g / 255, modelData.b / 255, 1)
+                                    border.color: (root.rgbR === modelData.r && root.rgbG === modelData.g && root.rgbB === modelData.b) ? "#ffffff" : "transparent"
+                                    border.width: 2
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            root.rgbR = modelData.r; root.rgbG = modelData.g; root.rgbB = modelData.b
+                                            root.aplicarRgb()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Repeater {
+                            model: Array(
+                                { label: "R", col: "#ff5555", prop: "rgbR" },
+                                { label: "G", col: "#55dd77", prop: "rgbG" },
+                                { label: "B", col: "#44aaff", prop: "rgbB" }
+                            )
+                            delegate: RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                PlasmaComponents.Label { text: modelData.label; color: modelData.col; font.bold: true; font.pointSize: 8.5; Layout.preferredWidth: 14 }
+                                PlasmaComponents.Slider {
+                                    Layout.fillWidth: true; Layout.preferredHeight: 18
+                                    from: 0; to: 255; stepSize: 5
+                                    value: root[modelData.prop]
+                                    onMoved: {
+                                        root[modelData.prop] = value
+                                        root.aplicarRgbEnVivo()
+                                    }
+                                    onPressedChanged: if (!pressed) root.aplicarRgb()
+                                }
+                                PlasmaComponents.Label { text: root[modelData.prop]; font.pointSize: 8; Layout.preferredWidth: 24; horizontalAlignment: Text.AlignRight }
+                            }
+                        }
+                    }
+                }
             Item { Layout.fillHeight: true }
         }
     }

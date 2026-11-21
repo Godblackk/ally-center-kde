@@ -107,6 +107,13 @@ def leer_estado():
                     datos["boost"] = cfg["boost"]
                 if "bateria_80" in cfg:
                     datos["bateria_80"] = cfg["bateria_80"]
+                if "rgb_modo" in cfg:
+                    datos["rgb_modo"] = cfg["rgb_modo"]
+                if "rgb" in cfg:
+                    datos["rgb"] = cfg["rgb"]
+                if "rgb_brillo" in cfg:
+                    datos["rgb_brillo"] = cfg["rgb_brillo"]
+
         except Exception:
             pass
 
@@ -254,6 +261,116 @@ def guardar_estado_sistema(clave, valor):
         pass
 
 
+LED_RGB_DIR = "/sys/class/leds/ally:rgb:joystick_rings"
+
+
+def escribir_led_rgb(r, g, b, brillo_pct, guardar_mcu=True):
+    pct = max(0, min(100, int(brillo_pct)))
+    factor = pct / 100.0
+    r_out = int(round(max(0, min(255, int(r))) * factor))
+    g_out = int(round(max(0, min(255, int(g))) * factor))
+    b_out = int(round(max(0, min(255, int(b))) * factor))
+
+    # Solo toca sysfs si está apagado o si las zonas aún no están habilitadas (evita parpadeo)
+    if os.path.exists(LED_RGB_DIR):
+        try:
+            ruta_mi = os.path.join(LED_RGB_DIR, "multi_intensity")
+            objetivo = "255 255 255 255" if pct > 0 else "0 0 0 0"
+            with open(ruta_mi, "r") as f:
+                actual = f.read().strip()
+            if actual != objetivo:
+                with open(ruta_mi, "w") as f:
+                    f.write(objetivo)
+            ruta_br = os.path.join(LED_RGB_DIR, "brightness")
+            brillo_obj = "255" if pct > 0 else "0"
+            with open(ruta_br, "r") as f:
+                br_act = f.read().strip()
+            if br_act != brillo_obj:
+                with open(ruta_br, "w") as f:
+                    f.write(brillo_obj)
+        except Exception:
+            pass
+
+    pkt_color = bytearray(64)
+    pkt_color[:7] = bytes([0x5A, 0xB3, 0x00, 0x00, r_out, g_out, b_out])
+    pkt_apply = bytearray(64)
+    pkt_apply[:2] = bytes([0x5A, 0xB5])
+    pkt_save = bytearray(64)
+    pkt_save[:2] = bytes([0x5A, 0xB4])
+
+    for h in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
+        try:
+            with open(os.path.join(h, "device/uevent"), "r") as f:
+                uev = f.read()
+            if "0003:00000B05:00001B4C" in uev or "0003:00000B05:00001ABE" in uev:
+                dev = "/dev/" + os.path.basename(h)
+                fd = os.open(dev, os.O_RDWR | os.O_NONBLOCK)
+                os.write(fd, pkt_color)
+                os.write(fd, pkt_apply)
+                if guardar_mcu:
+                    os.write(fd, pkt_save)
+                os.close(fd)
+        except Exception:
+            pass
+
+
+
+
+def calcular_color_dinamico(modo, r_base=0, g_base=210, b_base=255):
+    if modo == "temp":
+        temp = 55
+        carpeta_temp = buscar_hwmon("k10temp")
+        if carpeta_temp:
+            try:
+                with open(os.path.join(carpeta_temp, "temp1_input"), "r") as f:
+                    temp = int(int(f.read().strip()) / 1000)
+            except Exception:
+                pass
+        if temp < 55:
+            return (0, 210, 255)      # Cian frío
+        elif temp < 72:
+            return (40, 230, 90)      # Verde templado
+        elif temp < 84:
+            return (255, 110, 0)      # Naranja carga alta
+        return (255, 15, 15)          # Rojo alerta térmica
+
+    elif modo == "bateria":
+        cap = 80
+        try:
+            with open("/sys/class/power_supply/BAT0/capacity", "r") as f:
+                cap = int(f.read().strip())
+        except Exception:
+            pass
+        if cap > 60:
+            return (35, 225, 85)      # Verde batería alta
+        elif cap >= 25:
+            return (255, 180, 0)      # Ámbar batería media
+        return (255, 20, 20)          # Rojo batería baja
+
+    elif modo == "hora":
+        h = time.localtime().tm_hour
+        if 7 <= h < 13:
+            return (255, 235, 195)    # Mañana: blanco cálido
+        elif 13 <= h < 20:
+            return (0, 210, 255)      # Tarde: cian vibrante
+        return (255, 35, 20)          # Noche: rojo tenue anti-deslumbramiento
+
+    return (int(r_base), int(g_base), int(b_base))
+
+
+def ajustar_rgb(modo, r, g, b, brillo_pct):
+    modo_valido = modo if modo in ("fijo", "temp", "bateria", "hora") else "fijo"
+    rgb_list = [max(0, min(255, int(r))), max(0, min(255, int(g))), max(0, min(255, int(b)))]
+    brillo = max(0, min(100, int(brillo_pct)))
+    guardar_estado_sistema("rgb_modo", modo_valido)
+    guardar_estado_sistema("rgb", rgb_list)
+    guardar_estado_sistema("rgb_brillo", brillo)
+    if os.path.exists("/tmp/ally_rgb_cache"):
+        os.remove("/tmp/ally_rgb_cache")
+    rc, gc, bc = calcular_color_dinamico(modo_valido, *rgb_list)
+    escribir_led_rgb(rc, gc, bc, brillo)
+
+
 def restaurar_boot():
     if not os.path.exists(CONFIG_SISTEMA):
         return
@@ -291,6 +408,15 @@ def restaurar_boot():
                 aplicar_puntos(carpeta_curva, ("pwm1", "pwm2"), puntos)
 
 
+    if "rgb_modo" in estado or "rgb" in estado:
+        modo_rgb = estado.get("rgb_modo", "fijo")
+        rgb_vals = estado.get("rgb", [0, 210, 255])
+        brillo_rgb = estado.get("rgb_brillo", 80)
+        rc, gc, bc = calcular_color_dinamico(modo_rgb, *rgb_vals)
+        escribir_led_rgb(rc, gc, bc, brillo_rgb)
+
+
+
 
 
 if __name__ == "__main__":
@@ -318,6 +444,32 @@ if __name__ == "__main__":
         sys.exit(0)
     elif comando == "boot":
         restaurar_boot()
+        sys.exit(0)
+    elif comando == "rgb" and len(args) >= 5:
+        ajustar_rgb(args[0], args[1], args[2], args[3], args[4])
+        sys.exit(0)
+    elif comando == "rgb_live" and len(args) >= 5:
+        rc, gc, bc = calcular_color_dinamico(args, args, args, args)
+        escribir_led_rgb(rc, gc, bc, args, guardar_mcu=False)
+        sys.exit(0)
+    elif comando == "rgb_tick":
+        if os.path.exists(CONFIG_SISTEMA):
+            try:
+                with open(CONFIG_SISTEMA, "r") as f:
+                    st = json.load(f)
+                m = st.get("rgb_modo", "fijo")
+                br = st.get("rgb_brillo", 80)
+                if m in ("temp", "bateria", "hora") and br > 0:
+                    rc, gc, bc = calcular_color_dinamico(m, *st.get("rgb",))
+                    cache_file = "/tmp/ally_rgb_cache"
+                    firma = f"{rc},{gc},{bc},{br}"
+                    prev = open(cache_file).read().strip() if os.path.exists(cache_file) else ""
+                    if firma != prev:
+                        escribir_led_rgb(rc, gc, bc, br, guardar_mcu=False)
+                        with open(cache_file, "w") as cf:
+                            cf.write(firma)
+            except Exception:
+                pass
         sys.exit(0)
     elif comando == "guardar_curva" and args:
         puntos = [int(x) for x in args.pop(0).split(",")]
