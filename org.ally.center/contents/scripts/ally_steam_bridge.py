@@ -443,7 +443,6 @@ JS_INJECT = """
     }, 1500);
 
     window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
-        window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
     window.__allyObs.observe(document.documentElement, { childList: true, subtree: true });
     intentarMontarEnRendimiento();
 })();
