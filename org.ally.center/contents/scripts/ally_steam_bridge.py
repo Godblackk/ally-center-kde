@@ -444,14 +444,15 @@ JS_INJECT = """
         }
 
         if (ancla) {
-            let fila = ancla;
-            while (fila.parentElement && fila.parentElement !== document.body) {
-                if (fila.parentElement.children.length >= 4) {
-                    fila.insertAdjacentElement("afterend", crearSeccionAlly());
+            let contenedorScroll = ancla.parentElement;
+            while (contenedorScroll && contenedorScroll !== document.body) {
+                const st = window.getComputedStyle(contenedorScroll);
+                if (st.overflowY === "auto" || st.overflowY === "scroll") {
+                    contenedorScroll.appendChild(crearSeccionAlly());
                     enviarComando({ cmd: "estado" });
                     return;
                 }
-                fila = fila.parentElement;
+                contenedorScroll = contenedorScroll.parentElement;
             }
         }
     }
