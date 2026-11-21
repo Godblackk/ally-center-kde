@@ -116,7 +116,7 @@ JS_INJECT = """
                 </div>
             </div>
 
-            <div style="position: relative; margin-bottom: 10px;">
+                <div id="ally-perfil-wrapper" style="position: relative; margin-bottom: 10px; opacity: ${manualActivo ? "0.4" : "1"}; pointer-events: ${manualActivo ? "none" : "auto"}; transition: opacity 0.15s;">
                 <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; cursor: pointer;">
                     <span>Perfil Energía</span>
                     <span id="ally-perfil-badge" style="background: #2a475e; border: 1px solid #66c0f4; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 600; font-size: 12px;">
@@ -182,6 +182,8 @@ JS_INJECT = """
         const perfilMenu = box.querySelector("#ally-perfil-menu");
         aplicarEstiloFoco(rowPerfil);
 
+        if (manualActivo) rowPerfil.tabIndex = -1;
+
         const seleccionarPerfil = (nuevo) => {
             estado.perfil = nuevo;
             ultimoPerfilKernel = nuevo;
@@ -232,6 +234,20 @@ JS_INJECT = """
             manualBadge.style.color = activo ? "#0e141b" : "#fff";
             manualBox.style.opacity = activo ? "1" : "0.4";
             manualBox.style.pointerEvents = activo ? "auto" : "none";
+
+            const pWrap = box.querySelector("#ally-perfil-wrapper");
+            if (pWrap) {
+                pWrap.style.opacity = activo ? "0.4" : "1";
+                pWrap.style.pointerEvents = activo ? "none" : "auto";
+            }
+
+            rowPerfil.tabIndex = activo ? -1 : 0;
+            rowTdp.tabIndex = activo ? 0 : -1;
+            box.querySelectorAll(".ally-preset-btn").forEach(b => b.tabIndex = activo ? 0 : -1);
+
+
+            if (activo && perfilMenu) perfilMenu.style.display = "none";
+
             if (activo) {
                 enviarComando({ cmd: "tdp", val: estado.tdp });
             } else {
@@ -275,6 +291,12 @@ JS_INJECT = """
                 if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); aplicarPreset(); }
             });
         });
+
+        if (!manualActivo) {
+            rowTdp.tabIndex = -1;
+            box.querySelectorAll(".ally-preset-btn").forEach(b => b.tabIndex = -1);
+        }
+
 
         const rowBoost = box.querySelector("#ally-row-boost");
         const badge = box.querySelector("#ally-boost-badge");
