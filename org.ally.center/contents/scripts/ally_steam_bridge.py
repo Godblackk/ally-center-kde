@@ -123,7 +123,10 @@ JS_INJECT = """
         let html = `
             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #66c0f4; text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                 <span>⚡ <span id="ally-tel-modelo">${estado.modelo || "Center ROG Ally X"}</span></span>
-                <span id="ally-tel-ac" style="font-size: 11px; color: #8b929a;">${estado.ac_conectado ? "AC" : "BAT"}</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="ally-btn-mando" style="background: #2a475e; color: #66c0f4; border: 1px solid rgba(102,192,244,0.4); border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; text-transform: none;">🎮 Mando</span>
+                    <span id="ally-tel-ac" style="font-size: 11px; color: #8b929a;">${estado.ac_conectado ? "AC" : "BAT"}</span>
+                </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(0,0,0,0.28); padding: 8px; border-radius: 6px; margin-bottom: 12px; font-size: 11px;">
@@ -221,7 +224,8 @@ JS_INJECT = """
 
 
         box.innerHTML = html;
-
+        const btnMando = box.querySelector("#ally-btn-mando");
+        if (btnMando) btnMando.onclick = () => pintarFocoAlly(0);
         const rowPerfil = box.querySelector("#ally-row-perfil");
         const perfilBadge = box.querySelector("#ally-perfil-badge");
         const perfilMenu = box.querySelector("#ally-perfil-menu");
@@ -587,7 +591,9 @@ JS_INJECT = """
     if (window.__allyMountTimer) clearInterval(window.__allyMountTimer);
     window.__allyMountTimer = setInterval(() => {
         intentarMontarEnRendimiento();
+        engancharPadReact();
     }, 250);
+
 
     if (window.__allyTelTimer) clearInterval(window.__allyTelTimer);
     window.__allyTelTimer = setInterval(() => {
@@ -676,14 +682,145 @@ JS_INJECT = """
         }
     };
 
+    window.addEventListener("keydown", (e) => {
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec || sec.offsetParent === null) return;
+
+        if (allyNavIdx === -1) {
+            if (e.key === "ArrowDown") {
+                const gp = document.querySelector('[class*="gpfocus"]');
+                if (gp && /Vista avanzada|Advanced View/i.test(gp.textContent || "")) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    pintarFocoAlly(0);
+                }
+            }
+            return;
+        }
+
+        const items = getAllyNavItems();
+        const actual = items[allyNavIdx];
+        if (!actual) { pintarFocoAlly(-1); return; }
+
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            pintarFocoAlly(Math.min(items.length - 1, allyNavIdx + 1));
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            e.stopPropagation();
+            if (allyNavIdx <= 0) {
+                pintarFocoAlly(-1);
+                document.querySelector('[class*="gpfocus"]')?.focus();
+            } else {
+                pintarFocoAlly(allyNavIdx - 1);
+            }
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            e.stopPropagation();
+            actual.dispatchEvent(new KeyboardEvent("keydown", { key: e.key, bubbles: true }));
+        } else if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            actual.click();
+        } else if (e.key === "Escape" || e.key === "Backspace") {
+            e.preventDefault();
+            e.stopPropagation();
+            pintarFocoAlly(-1);
+            document.querySelector('[class*="gpfocus"]')?.focus();
+        }
+    }, true);
+
+
+    window.addEventListener("vgp_onbuttondown", (e) => {
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec || sec.offsetParent === null) return;
+        const b = e.detail?.button;
+        const mapVgp = { 1: "UP", 32: "UP", 4: "DOWN", 35: "DOWN", 3: "LEFT", 34: "LEFT", 2: "RIGHT", 33: "RIGHT", 5: "A", 6: "B" };
+        const accion = mapVgp[b];
+        if (!accion) return;
+
+        if (allyNavIdx === -1) {
+            if (accion === "DOWN") {
+                const gp = document.querySelector('[class*="gpfocus"]');
+                if (gp && /Vista avanzada|Advanced View/i.test(gp.textContent || "")) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    pintarFocoAlly(0);
+                }
+            }
+            return;
+        }
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        window.__allyControllerBtn(accion);
+    }, true);
+
+
+    function engancharPadReact() {
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec || sec.offsetParent === null) return;
+        const panel = sec.parentElement;
+        if (!panel) return;
+
+        panel.querySelectorAll("button, [tabindex], [class*='Focusable']").forEach(el => {
+            if (sec.contains(el) || el.__allyHooked) return;
+            const propKey = Object.keys(el).find(k => k.startsWith("__reactProps$"));
+            if (!propKey || !el[propKey]) return;
+            const props = el[propKey];
+
+            if (typeof props.onGamepadDirection === "function") {
+                const origDir = props.onGamepadDirection;
+                props.onGamepadDirection = function(e) {
+                    const dir = e?.detail?.direction;
+                    // Si estamos dentro de nuestra tarjeta, controlamos nosotros
+                    if (allyNavIdx >= 0) {
+                        const mapD = { 9: "UP", 10: "DOWN", 11: "LEFT", 12: "RIGHT" };
+                        if (mapD[dir]) {
+                            window.__allyControllerBtn(mapD[dir]);
+                            return true;
+                        }
+                    }
+                    // Si estamos en "Vista avanzada" (último control nativo) y pulsamos Abajo (10)
+                    if (allyNavIdx === -1 && dir === 10 && /Vista avanzada|Advanced View/i.test(el.textContent || "")) {
+                        pintarFocoAlly(0);
+                        return true;
+                    }
+                    return origDir.apply(this, arguments);
+                };
+            }
+
+            if (typeof props.onOKButton === "function") {
+                const origOk = props.onOKButton;
+                props.onOKButton = function(e) {
+                    if (allyNavIdx >= 0) {
+                        window.__allyControllerBtn("A");
+                        return true;
+                    }
+                    return origOk.apply(this, arguments);
+                };
+            }
+
+            if (typeof props.onCancelButton === "function") {
+                const origCancel = props.onCancelButton;
+                props.onCancelButton = function(e) {
+                    if (allyNavIdx >= 0) {
+                        window.__allyControllerBtn("B");
+                        return true;
+                    }
+                    return origCancel.apply(this, arguments);
+                };
+            }
+
+            el.__allyHooked = true;
+        });
+    }
+
 
     window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
     window.__allyObs.observe(document.documentElement, { childList: true, subtree: true });
     intentarMontarEnRendimiento();
-
-
-
-
 
 })();
 """
