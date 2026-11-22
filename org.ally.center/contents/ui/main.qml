@@ -8,12 +8,14 @@ import org.kde.kirigami as Kirigami
 
 PlasmoidItem {
     id: root
+    onExpandedChanged: if (expanded) ejecutarComando("estado")
 
     //lee los valores de tdp y energia guardados por KDE Plasma al iniciar
     property string tituloConsola: "Center ROG Ally X"
     property int tabActual: Plasmoid.configuration.tabActual
     property int perfilEnergia: Plasmoid.configuration.perfilEnergia
     property bool tdpManual: Plasmoid.configuration.tdpManual
+    property bool tdpBoost: false
     property int tdpWatts: Plasmoid.configuration.tdpWatts
     property bool cpuBoost: Plasmoid.configuration.cpuBoost
     property bool cuidadoBateria: Plasmoid.configuration.cuidadoBateria
@@ -31,8 +33,7 @@ PlasmoidItem {
     }
     property bool acConectado: false
     property int maxTdpActual: root.acConectado ? 30 : 25
-
-
+    property int ultimoPerfilKernel: -1
 
 
     // Lee los valores de ventiladores guardados por KDE Plasma al iniciar
@@ -45,6 +46,7 @@ PlasmoidItem {
 
     property var curvaTemps: Array(30, 40, 50, 60, 70, 80, 90, 100)
     property var curvaPuntos: Array(15, 25, 40, 55, 70, 85, 95, 100)
+    signal curvaActualizada()
 
     property int cpuRpm: 0
     property int gpuRpm: 0
@@ -96,12 +98,14 @@ PlasmoidItem {
     function aplicarTodoEnergia() {
         pausarSync()
         if (root.tdpManual) {
-            ejecutarComando("tdp " + root.tdpWatts)
+            if (root.tdpWatts < 25) root.tdpBoost = false
+            ejecutarComando("tdp " + root.tdpWatts + (root.tdpBoost ? " 1" : " 0"))
         } else {
             ejecutarComando("perfil " + root.perfilEnergia)
         }
         aplicarEstadoActual()
     }
+
 
 
     // Aplica el modo activo al chip de la Ally X
@@ -138,21 +142,27 @@ PlasmoidItem {
                         root.cpuRpm = info.cpu_rpm || 0
                         root.gpuRpm = info.gpu_rpm || 0
                         root.cpuTemp = info.temp || 0
-                        sincronizarCurvaDinamica()
                         root.apuWatts = info.watts || "0.0"
 
                         if (!root.bloqueadoSync) {
-                            if (info.perfil !== undefined) root.perfilEnergia = info.perfil
                             if (info.tdp !== undefined) root.tdpWatts = info.tdp
                             if (info.tdp_manual !== undefined) root.tdpManual = info.tdp_manual
+                            if (info.perfil !== undefined) {
+                                if ((root.ultimoPerfilKernel !== -1 && info.perfil !== root.ultimoPerfilKernel) || (root.tdpManual && info.perfil !== 2)) {
+                                    root.tdpManual = false
+                                    root.tdpBoost = false
+                                    ejecutarComando("perfil " + info.perfil)
+                                }
+                                root.ultimoPerfilKernel = info.perfil
+                                root.perfilEnergia = info.perfil
+                            }
+                            if (!root.tdpManual) root.tdpWatts = (root.perfilEnergia === 0) ? 13 : (root.perfilEnergia === 1 ? 17 : (root.acConectado ? 30 : 25))
+                            if (info.tdp_boost !== undefined) root.tdpBoost = info.tdp_boost
                             if (info.boost !== undefined) root.cpuBoost = info.boost
                             if (info.bateria_80 !== undefined) root.cuidadoBateria = info.bateria_80
-
                             if (info.curva && info.curva.length === 8) {
-                                root.curvaPuntos = info.curva
-                                if (typeof graficoCanvas !== "undefined" && graficoCanvas) {
-                                    graficoCanvas.requestPaint()
-                                }
+                                root.curvaPuntos = info.curva.slice()
+                                root.curvaActualizada()
                             }
                             if (info.modo_fan !== undefined) {
                                 root.modoActual = (info.modo_fan === "auto") ? 0 : (info.modo_fan === "manual" ? 1 : 2)
@@ -187,8 +197,12 @@ PlasmoidItem {
 
     function ejecutarComando(args) {
         let rutaLimpia = scriptPath.toString().replace("file://", "")
-        let prefijo = (args === "estado") ? "python3 " : "sudo python3 "
-        ejecutor.connectSource(prefijo + rutaLimpia + " " + args)
+        if (args === "estado") {
+            let rutaSh = rutaLimpia.replace("ally_center.py", "estado.sh")
+            ejecutor.connectSource("/bin/sh " + rutaSh)
+        } else {
+            ejecutor.connectSource("sudo python3 " + rutaLimpia + " " + args)
+        }
     }
 
     function aplicarPreset(porcentaje) {
@@ -212,45 +226,26 @@ PlasmoidItem {
         }
 
         root.curvaPuntos = copia
-        graficoCanvas.requestPaint()
     }
 
     function aplicarCurva() {
         guardarConfig()
         ejecutarComando("guardar_curva " + root.curvaPuntos.join(","))
         root.ultimoPctCurva = -1
-        sincronizarCurvaDinamica()
+
 
     }
 
-    function sincronizarCurvaDinamica() {
-        if (root.modoActual !== 2) return
-            let tempClamped = Math.max(30, Math.min(100, root.cpuTemp))
-            let posFraccion = (tempClamped - 30) / 10.0
-            let idxBajo = Math.min(6, Math.floor(posFraccion))
-            let idxAlto = idxBajo + 1
-            let tSegmento = posFraccion - idxBajo
-
-            let v1 = root.curvaPuntos[idxBajo]
-            let v2 = root.curvaPuntos[idxAlto]
-            let pctExacto = Math.round(v1 + (v2 - v1) * tSegmento)
-
-            if (pctExacto !== root.ultimoPctCurva) {
-                root.ultimoPctCurva = pctExacto
-                ejecutarComando("ambos " + pctExacto)
-            }
-    }
 
     Timer {
-        interval: 2000
-        running: root.expanded || root.modoActual === 2 || root.rgbModo !== "fijo"
+        interval: root.expanded ? 1000 : 3000
+        running: root.expanded || root.rgbModo !== "fijo"
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             ejecutarComando("estado")
             if (root.rgbModo !== "fijo" && root.rgbBrillo > 0) ejecutarComando("rgb_tick")
         }
-
     }
 
     compactRepresentation: Kirigami.Icon {
@@ -268,7 +263,7 @@ PlasmoidItem {
         // Tamaño compacto dinámico según el modo elegido
         Layout.minimumWidth: Kirigami.Units.gridUnit * 18
         Layout.preferredWidth: Kirigami.Units.gridUnit * 19
-        Layout.minimumHeight: root.tabActual === 0 ? Kirigami.Units.gridUnit * 17.5 :
+        Layout.minimumHeight: root.tabActual === 0 ? Kirigami.Units.gridUnit * 19.5 :
         (root.tabActual === 2 ? (root.rgbModo === "fijo" ? Kirigami.Units.gridUnit * 20.5 : Kirigami.Units.gridUnit * 14.5) :
         (root.modoActual === 0 ? Kirigami.Units.gridUnit * 11.5 :
         (root.modoActual === 1 ? Kirigami.Units.gridUnit * 17.5 : Kirigami.Units.gridUnit * 21.5)))
@@ -361,7 +356,7 @@ PlasmoidItem {
                     onClicked: {
                         root.tabActual = 1
                         guardarConfig()
-                        if (root.modoActual === 2 && root.vistaCurva === 0) graficoCanvas.requestPaint()
+                        if (root.modoActual === 2 && root.vistaCurva === 0 && typeof graficoCanvas !== "undefined") graficoCanvas.requestPaint()
                     }
                 }
                 PlasmaComponents.Button {
@@ -397,16 +392,18 @@ PlasmoidItem {
                     PlasmaComponents.Label { text: "Perfil Energía"; font.pointSize: 9; Layout.fillWidth: true }
                     PlasmaComponents.ComboBox {
                         font.pointSize: 8
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
                         model: root.tdpManual ? ["Manual (Custom)"] : ["Ahorro (13W)", "Equilibrado (17W)", root.acConectado ? "Rendimiento (30W)" : "Rendimiento (25W)"]
                         currentIndex: root.tdpManual ? 0 : root.perfilEnergia
                         onActivated: (index) => {
-                            if (!root.tdpManual) {
-                                root.perfilEnergia = index
-                                let wattsBase = [13, 17, root.acConectado ? 30 : 25]
-                                root.tdpWatts = wattsBase[index]
-                                guardarConfig()
-                                aplicarTodoEnergia()
-                            }
+                            pausarSync()
+                            root.perfilEnergia = index
+                            root.ultimoPerfilKernel = index
+                            root.tdpManual = false
+                            root.tdpBoost = false
+                            root.tdpWatts = (index === 0) ? 13 : (index === 1 ? 17 : (root.acConectado ? 30 : 25))
+                            guardarConfig()
+                            ejecutarComando("perfil " + index)
                         }
                     }
                 }
@@ -436,16 +433,25 @@ PlasmoidItem {
                         PlasmaComponents.Label { text: root.tdpWatts + " W"; font.pointSize: 9.5; font.bold: true }
                     }
                     PlasmaComponents.Slider {
+                        id: sliderTdp
                         Layout.fillWidth: true
                         from: 7; to: root.maxTdpActual; stepSize: 1
                         value: root.tdpWatts
-                        onMoved: root.tdpWatts = value
+                        Connections {
+                            target: root
+                            function onTdpWattsChanged() {
+                                if (!sliderTdp.pressed) sliderTdp.value = root.tdpWatts
+                            }
+                        }
+                        onMoved: {
+                            root.tdpWatts = Math.round(value)
+                            if (root.tdpWatts < 25) root.tdpBoost = false
+                        }
                         onPressedChanged: if (!pressed) {
                             guardarConfig()
-                            ejecutarComando("tdp " + root.tdpWatts)
+                            aplicarTodoEnergia()
                         }
                     }
-
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -470,6 +476,18 @@ PlasmoidItem {
                             opacity: root.acConectado ? 1.0 : 0.4
                             highlighted: root.tdpWatts === 30
                             onClicked: { pausarSync(); root.tdpWatts = 30; guardarConfig(); ejecutarComando("tdp 30") }
+                        }
+                    }
+                    PlasmaComponents.Switch {
+                        text: "Boost Pico (SPPT / FPPT)"
+                        font.pointSize: 9
+                        enabled: root.tdpManual && root.tdpWatts >= 25
+                        checked: root.tdpBoost
+                        onToggled: {
+                            pausarSync()
+                            root.tdpBoost = checked
+                            guardarConfig()
+                            ejecutarComando("tdp " + root.tdpWatts + (checked ? " 1" : " 0"))
                         }
                     }
                 }
@@ -511,6 +529,7 @@ PlasmoidItem {
                 PlasmaComponents.Label { text: "Modo"; font.pointSize: 9; Layout.fillWidth: true }
                 PlasmaComponents.ComboBox {
                     font.pointSize: 9
+                    Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
                     model: Array("Automático (BIOS)", "Manual (Perfiles)", "Curva Personalizada")
                     currentIndex: root.modoActual
                     onActivated: (index) => {
@@ -528,7 +547,7 @@ PlasmoidItem {
                             }
                         } else if (index === 2) {
                             aplicarCurva()
-                            graficoCanvas.requestPaint()
+                            if (typeof graficoCanvas !== "undefined") graficoCanvas.requestPaint()
                         }
                     }
                 }
@@ -666,12 +685,12 @@ PlasmoidItem {
                         onClicked: {
                             root.curvaPuntos = Array(15, 25, 40, 55, 70, 85, 95, 100)
                             root.aplicarCurva()
-                            graficoCanvas.requestPaint()
                         }
                     }
 
                     PlasmaComponents.ComboBox {
                         font.pointSize: 8
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
                         model: Array("Curva Manual", "Deslizadores")
                         currentIndex: root.vistaCurva
                         onActivated: (index) => {
@@ -791,6 +810,10 @@ PlasmoidItem {
                                     ctx.stroke()
                                 }
                         }
+                        Connections {
+                            target: root
+                            function onCurvaActualizada() { graficoCanvas.requestPaint() }
+                        }
                     }
 
                     RowLayout {
@@ -855,6 +878,12 @@ PlasmoidItem {
                                         Layout.alignment: Qt.AlignHCenter
                                         from: 0; to: 100; stepSize: 5
                                         value: root.curvaPuntos[index]
+                                        Connections {
+                                            target: root
+                                            function onCurvaActualizada() {
+                                                if (!nodoSlider.pressed) nodoSlider.value = root.curvaPuntos[index]
+                                            }
+                                        }
                                         onMoved: root.actualizarPuntoCurva(index, value)
                                         onPressedChanged: if (!pressed) root.aplicarCurva()
 
@@ -924,8 +953,10 @@ PlasmoidItem {
                     spacing: 0
 
                     Repeater {
+                        id: repCurvaSliders
                         model: 8
                         RowLayout {
+                            property alias sliderVal: slCurva.value
                             Layout.fillWidth: true
                             spacing: 4
                             PlasmaComponents.Label {
@@ -935,10 +966,17 @@ PlasmoidItem {
                                 font.bold: true
                             }
                             PlasmaComponents.Slider {
+                                id: slCurva
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 18
                                 from: 0; to: 100; stepSize: 5
                                 value: root.curvaPuntos[index]
+                                Connections {
+                                    target: root
+                                    function onCurvaActualizada() {
+                                        if (!slCurva.pressed) slCurva.value = root.curvaPuntos[index]
+                                    }
+                                }
                                 onMoved: root.actualizarPuntoCurva(index, value)
                                 onPressedChanged: if (!pressed) root.aplicarCurva()
                             }
@@ -1007,6 +1045,7 @@ PlasmoidItem {
                         PlasmaComponents.Label { text: "Modo"; font.pointSize: 9; Layout.fillWidth: true }
                         PlasmaComponents.ComboBox {
                             font.pointSize: 8.5
+                            Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
                             model: Array("Fijo (Color)", "Temperatura APU", "Nivel Batería", "Ciclo Horario")
                             currentIndex: root.rgbModo === "temp" ? 1 : (root.rgbModo === "bateria" ? 2 : (root.rgbModo === "hora" ? 3 : 0))
                             onActivated: (index) => {

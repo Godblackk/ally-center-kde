@@ -44,12 +44,16 @@ for h in /sys/class/hwmon/hwmon*; do
             done
             ;;
         k10temp)
-            if [ -r "$h/temp1_input" ]; then
+            if [ "$temp" -eq 0 ] && [ -r "$h/temp1_input" ]; then
                 read -r t_raw < "$h/temp1_input"
                 temp=$((t_raw / 1000))
             fi
             ;;
         amdgpu)
+            if [ -r "$h/temp1_input" ]; then
+                read -r t_raw < "$h/temp1_input"
+                temp=$((t_raw / 1000))
+            fi
             # Prioriza power1_input (instantáneo) y usa power1_average como respaldo
             p_file=""
             [ -r "$h/power1_input" ] && p_file="$h/power1_input"
@@ -62,16 +66,20 @@ for h in /sys/class/hwmon/hwmon*; do
     esac
 done
 
-# 4. Perfil de energía activo
+# 4. Perfil de energía activo (power-profiles-daemon + platform_profile)
 perfil_json=""
-if [ -r /sys/firmware/acpi/platform_profile ]; then
-    read -r p_str < /sys/firmware/acpi/platform_profile
-    case "$p_str" in
-        low-power|quiet) perfil_json=', "perfil": 0' ;;
-        balanced)        perfil_json=', "perfil": 1' ;;
-        performance)     perfil_json=', "perfil": 2' ;;
-    esac
+p_str=""
+if [ -r /var/lib/power-profiles-daemon/state.ini ]; then
+    p_str=$(sed -n 's/^Profile=//p' /var/lib/power-profiles-daemon/state.ini)
 fi
+if [ -z "$p_str" ] && [ -r /sys/firmware/acpi/platform_profile ]; then
+    read -r p_str < /sys/firmware/acpi/platform_profile
+fi
+case "$p_str" in
+    low-power|quiet|power-saver) perfil_json=', "perfil": 0' ;;
+    balanced) perfil_json=', "perfil": 1' ;;
+    performance) perfil_json=', "perfil": 2' ;;
+esac
 
 # 5. TDP actual
 tdp_json=""
@@ -108,7 +116,19 @@ if [ -r "$bat_path" ]; then
     fi
 fi
 
-# Salida JSON idéntica a ally_center.py
-printf '{"modelo": "%s", "cpu_rpm": %d, "gpu_rpm": %d, "temp": %d, "watts": "%s", "ac_conectado": %s%s%s%s%s}\n' \
+# 8. Estado persistente desde /etc/ally-center.json (curva, modo_fan, tdp_boost, rgb)
+extra_json=""
+if [ -r /etc/ally-center.json ]; then
+    json_raw=$(tr -d '\n\r ' < /etc/ally-center.json)
+    # Extrae todo el contenido interno quitando la primera '{' y la última '}'
+    inner="${json_raw#\{}"
+    inner="${inner%\}}"
+    [ -n "$inner" ] && extra_json=", $inner"
+fi
+
+# Salida JSON completa (hardware en vivo + configuración guardada)
+printf '{"modelo": "%s", "cpu_rpm": %d, "gpu_rpm": %d, "temp": %d, "watts": "%s", "ac_conectado": %s%s%s%s%s%s}\n' \
     "$modelo" "$cpu_rpm" "$gpu_rpm" "$temp" "$watts" "$ac_conectado" \
-    "$perfil_json" "$tdp_json" "$boost_json" "$bat_json"
+    "$extra_json" "$perfil_json" "$tdp_json" "$boost_json" "$bat_json"
+
+

@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import time
+import fcntl
 
 def buscar_hwmon(nombre_objetivo):
     for archivo_name in glob.glob("/sys/class/hwmon/hwmon*/name"):
@@ -19,6 +20,21 @@ def buscar_hwmon(nombre_objetivo):
         except Exception:
             pass
     return None
+
+
+def leer_temp_apu():
+    for sensor in ("amdgpu", "k10temp"):
+        carpeta = buscar_hwmon(sensor)
+        if carpeta:
+            try:
+                with open(os.path.join(carpeta, "temp1_input"), "r") as f:
+                    val = int(int(f.read().strip()) / 1000)
+                    if val > 0:
+                        return val
+            except Exception:
+                pass
+    return 0
+
 
 def leer_estado():
     datos = {
@@ -45,13 +61,7 @@ def leer_estado():
             except Exception:
                 pass
 
-    carpeta_temp = buscar_hwmon("k10temp")
-    if carpeta_temp:
-        try:
-            with open(os.path.join(carpeta_temp, "temp1_input"), "r") as f:
-                datos["temp"] = int(int(f.read().strip()) / 1000)
-        except Exception:
-            pass
+    datos["temp"] = leer_temp_apu()
 
     carpeta_gpu = buscar_hwmon("amdgpu")
     if carpeta_gpu:
@@ -103,6 +113,8 @@ def leer_estado():
                     datos["modo_fan"] = cfg["modo_fan"]
                 if "tdp_manual" in cfg:
                     datos["tdp_manual"] = cfg["tdp_manual"]
+                if "tdp_boost" in cfg:
+                    datos["tdp_boost"] = cfg["tdp_boost"]
                 if "boost" in cfg:
                     datos["boost"] = cfg["boost"]
                 if "bateria_80" in cfg:
@@ -131,6 +143,10 @@ def cambiar_modo(carpeta, modo):
 def aplicar_puntos(carpeta, canales, lista_porcentajes):
     temps_validas = range(30, 105, 10)
     for canal in canales:
+        ruta_enable = os.path.join(carpeta, f"{canal}_enable")
+        if os.path.exists(ruta_enable):
+            with open(ruta_enable, "w") as f:
+                f.write("1")
         for idx, temp in enumerate(temps_validas, start=1):
             ruta_temp = os.path.join(carpeta, f"{canal}_auto_point{idx}_temp")
             if os.path.exists(ruta_temp):
@@ -142,10 +158,10 @@ def aplicar_puntos(carpeta, canales, lista_porcentajes):
             if os.path.exists(ruta_punto):
                 with open(ruta_punto, "w") as f:
                     f.write(valor_pwm)
-        ruta_enable = os.path.join(carpeta, f"{canal}_enable")
         if os.path.exists(ruta_enable):
             with open(ruta_enable, "w") as f:
                 f.write("1")
+
 
 
 def detectar_modelo():
@@ -160,20 +176,39 @@ def detectar_modelo():
         pass
     return "Center ROG Ally X"
 
-def ajustar_tdp(watts):
+def ajustar_tdp(watts, boost_pico=None):
     max_w = 30 if cargador_conectado() else 25
     w = max(7, min(max_w, int(watts)))
+    if boost_pico is None and os.path.exists(CONFIG_SISTEMA):
+        try:
+            with open(CONFIG_SISTEMA, "r") as f:
+                boost_pico = bool(json.load(f).get("tdp_boost", False))
+        except Exception:
+            boost_pico = False
+    usar_pico = bool(boost_pico) and (w >= 25)
     base = "/sys/class/firmware-attributes/asus-armoury/attributes"
     for attr in ("ppt_pl1_spl", "ppt_pl2_sppt", "ppt_pl3_fppt"):
-        ruta = os.path.join(base, attr, "current_value")
+        dir_attr = os.path.join(base, attr)
+        ruta = os.path.join(dir_attr, "current_value")
         if os.path.exists(ruta):
             try:
+                with open(os.path.join(dir_attr, "min_value"), "r") as fm:
+                    min_hw = int(fm.read().strip())
+                with open(os.path.join(dir_attr, "max_value"), "r") as fx:
+                    max_hw = int(fx.read().strip())
+                if attr != "ppt_pl1_spl" and usar_pico:
+                    val_escribir = max_hw
+                else:
+                    val_escribir = max(min_hw, min(max_hw, w))
                 with open(ruta, "w") as f:
-                    f.write(str(w))
+                    f.write(str(val_escribir))
             except Exception:
                 pass
     guardar_estado_sistema("tdp", w)
     guardar_estado_sistema("tdp_manual", True)
+    guardar_estado_sistema("tdp_boost", usar_pico)
+
+
 
 def ajustar_boost(activo):
     ruta = "/sys/devices/system/cpu/cpufreq/boost"
@@ -318,14 +353,7 @@ def escribir_led_rgb(r, g, b, brillo_pct, guardar_mcu=True):
 
 def calcular_color_dinamico(modo, r_base=0, g_base=210, b_base=255):
     if modo == "temp":
-        temp = 55
-        carpeta_temp = buscar_hwmon("k10temp")
-        if carpeta_temp:
-            try:
-                with open(os.path.join(carpeta_temp, "temp1_input"), "r") as f:
-                    temp = int(int(f.read().strip()) / 1000)
-            except Exception:
-                pass
+        temp = leer_temp_apu() or 55
         if temp < 55:
             return (0, 210, 255)      # Cian frío
         elif temp < 72:
@@ -381,7 +409,7 @@ def restaurar_boot():
         return
 
     if estado.get("tdp_manual") and "tdp" in estado:
-        ajustar_tdp(estado["tdp"])
+        ajustar_tdp(estado["tdp"], estado.get("tdp_boost", False))
         time.sleep(0.5)
     else:
         if "perfil" in estado:
@@ -427,6 +455,11 @@ if __name__ == "__main__":
 
     comando = args.pop(0)
 
+    if comando != "estado":
+        lock_fd = open("/tmp/ally_center.lock", "w")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+
     if comando == "estado":
         leer_estado()
         sys.exit(0)
@@ -434,7 +467,9 @@ if __name__ == "__main__":
         ajustar_perfil(args.pop(0))
         sys.exit(0)
     elif comando == "tdp" and args:
-        ajustar_tdp(args.pop(0))
+        w_arg = args.pop(0)
+        b_arg = (args.pop(0) == "1") if args else None
+        ajustar_tdp(w_arg, b_arg)
         sys.exit(0)
     elif comando == "boost" and args:
         ajustar_boost(args.pop(0))
@@ -449,8 +484,9 @@ if __name__ == "__main__":
         ajustar_rgb(args[0], args[1], args[2], args[3], args[4])
         sys.exit(0)
     elif comando == "rgb_live" and len(args) >= 5:
-        rc, gc, bc = calcular_color_dinamico(args, args, args, args)
-        escribir_led_rgb(rc, gc, bc, args, guardar_mcu=False)
+        m_rgb, r_s, g_s, b_s, br_s, *_ = args
+        rc, gc, bc = calcular_color_dinamico(m_rgb, r_s, g_s, b_s)
+        escribir_led_rgb(rc, gc, bc, br_s, guardar_mcu=False)
         sys.exit(0)
     elif comando == "rgb_tick":
         if os.path.exists(CONFIG_SISTEMA):
@@ -460,7 +496,8 @@ if __name__ == "__main__":
                 m = st.get("rgb_modo", "fijo")
                 br = st.get("rgb_brillo", 80)
                 if m in ("temp", "bateria", "hora") and br > 0:
-                    rc, gc, bc = calcular_color_dinamico(m, *st.get("rgb",))
+                    rgb_base = st.get("rgb", (0, 210, 255))
+                    rc, gc, bc = calcular_color_dinamico(m, *rgb_base)
                     cache_file = "/tmp/ally_rgb_cache"
                     firma = f"{rc},{gc},{bc},{br}"
                     prev = open(cache_file).read().strip() if os.path.exists(cache_file) else ""
