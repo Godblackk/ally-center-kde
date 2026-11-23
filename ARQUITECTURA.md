@@ -1,46 +1,30 @@
-# Arquitectura Técnica - Center ROG Ally (KDE Plasma 6)
+# Arquitectura Técnica - Center ROG Ally (KDE Plasma 6 + Steam Modo Juego)
 
-Documentación de referencia de archivos, rutas del kernel y funciones del proyecto `org.ally.center` para futuras ampliaciones.
-
----
+> **⚠️ EXCLUSIVO PARA ASUS ROG ALLY / ROG ALLY X:** Documentación técnica de archivos, rutas del kernel de Linux y protocolos para **ASUS ROG Ally (RC71L)** y **ROG Ally X (RC72LA)**.
 
 ## 1. Estructura de archivos del proyecto
 
-* `install.sh`: Instalador automático (`kpackagetool6`, iconos `hicolor`, `sudoers` y `systemd`).
-* `uninstall.sh`: Desinstalador completo del widget, iconos, permisos y servicio de arranque.
-* `README.md`: Guía de uso e instalación rápida.
-* `ARQUITECTURA.md`: Esta guía técnica de referencia.
-* `org.ally.center/`: Paquete del widget (Plasmoide KDE Plasma 6)
-  *  `metadata.json`: Metadatos del applet (`ID: org.ally.center`, `Icon: ally-center`).
-  *  `contents/config/main.xml`: Esquema KConfig para persistencia de ajustes en Plasma.
-  *  `contents/icons/`: Iconos SVG (`logo.svg`, `fan.svg`, `leaf.svg`, `balance.svg`, `rocket.svg`, `manual.svg`).
-  *  `contents/scripts/estado.sh`: Lector rápido de telemetría en POSIX shell (sin `sudo`, ejecutado cada `500 ms` con el popup abierto para cero latencia).
-  *  `contents/scripts/ally_center.py`: Backend Python con privilegios root (vía `sudoers`) para escritura en hardware y persistencia en el arranque.
-  *  `contents/scripts/ally_steam_bridge.py`: Demonio de usuario (`systemd --user`) que conecta vía WebSocket al puerto de depuración CEF de Steam (`localhost:8080`) para inyectar la interfaz de control en el menú rápido (`QuickAccess`) de Modo Juego sin depender de Decky Loader.
-  *  `contents/ui/main.qml`: Interfaz gráfica QML / Kirigami / PlasmaComponents.
-
----
+- **Scripts de instalación/desinstalación**: `install.sh` y `uninstall.sh` gestionan el despliegue del plasmoide, iconos, reglas `sudoers`, integración con Steam CEF y servicios `systemd`.
+- **Documentación**: `README.md` (guía de uso e instalación) y `ARQUITECTURA.md` (referencia técnica).
+- **Módulos del widget (`org.ally.center/`)**:
+  - `metadata.json` y `contents/config/main.xml`: Configuración y persistencia del applet en KDE Plasma 6.
+  - `contents/icons/`: Iconos vectoriales SVG del sistema.
+  - `contents/scripts/estado.sh`: Lector POSIX ultrarrápido (< 2 ms, sin `sudo`) para telemetría combinando el kernel y `/etc/ally-center.json`.
+  - `contents/scripts/ally_center.py`: Backend con privilegios root (vía `sudoers` y `fcntl.flock`) para hardware, RGB y `/etc/ally-center.json`.
+  - `contents/scripts/ally_steam_bridge.py`: Demonio de usuario (`systemd --user`) conectado al puerto de depuración CEF de Steam (`localhost:8080`) para integrar el widget en **Configuraciones rápidas (`... → ⚙️`)** del Modo Juego.
+  - `contents/ui/main.qml`: Interfaz gráfica desarrollada con QML / Kirigami.
 
 ## 2. Rutas del kernel de Linux utilizadas (`estado.sh` / `ally_center.py`)
 
-* **Modelo de consola:** `/sys/devices/virtual/dmi/id/product_name` (o `/sys/class/dmi/id/product_name`)
-* **Estado del cargador (AC vs Batería):** `/sys/class/power_supply/*/type` (`Mains`) y `online` (`1` o `0`)
-* **Perfil de energía ACPI:** `/sys/firmware/acpi/platform_profile` (`low-power`, `balanced`, `performance`)
-* **Límites de TDP (`asus-armoury`):** `/sys/class/firmware-attributes/asus-armoury/attributes/{ppt_pl1_spl,ppt_pl2_sppt,ppt_pl3_fppt}/current_value`
-  * Ahorro: `13 / 17 / 20 W`
-  * Equilibrado: `17 / 20 / 25 W`
-  * Rendimiento: `25 / 30 / 35 W` (Batería) | `30 / 35 / 45 W` (AC conectado)
-  * Manual: `7–25 W` (Batería) | `7–30 W` (AC conectado)
-* **CPU Boost:** `/sys/devices/system/cpu/cpufreq/boost` (`1` = activo, `0` = apagado)
-* **Límite de carga de batería:** `/sys/class/power_supply/BAT0/charge_control_end_threshold` (`80` o `100`)
-* **Sensores (`hwmon`):**
-  * Temperatura APU: `amdgpu` (`temp1_input` / `1000`, sensor instantáneo *edge*) con respaldo automático en `k10temp` (`temp1_input` / `1000`)
-  * Consumo APU: `amdgpu` (`power1_input` instantáneo o `power1_average` / `1000000`)
-  * RPM Ventiladores: `asus` (`fan1_input`, `fan2_input` vinculados mediante `fan{1,2}_label`)
-  * Control de curva PWM: `asus_custom_fan_curve` (`pwm1_enable`, `pwm1_auto_point{1..8}_{temp,pwm}`, `pwm2_auto_point{1..8}_{temp,pwm}`)
-* **Persistencia de arranque (`systemd`):** `/etc/ally-center.json` restaurado por `/etc/systemd/system/ally-center.service` al ejecutar `ally_center.py boot`.
-
----
+- **Hardware y energía**: Identificación de modelo en `/sys/devices/virtual/dmi/id/product_name` y estado AC/batería en `/sys/class/power_supply/*/type`.
+- **Telemetría de batería (`BAT0`)**: Monitoreo de capacidad, estado (`Discharging`, `Charging`, etc.), energía restante, potencia en Watts, tiempo estimado y umbral de carga (`/sys/class/power_supply/BAT0/`).
+- **Rendimiento y TDP (`asus-armoury`)**: 
+  - Perfiles ACPI (`/sys/firmware/acpi/platform_profile`).
+  - Límites de potencia PL1, PL2 y PL3 para modos *Ahorro*, *Equilibrado*, *Rendimiento* y *Manual* (`/sys/class/firmware-attributes/asus-armoury/attributes/`).
+  - Control de CPU Boost (`/sys/devices/system/cpu/cpufreq/boost`).
+- **Sensores (`hwmon`)**: Lectura de temperatura APU (`amdgpu` / `k10temp`), consumo energético, RPM de ventiladores y curvas PWM personalizadas (`asus_custom_fan_curve`).
+- **Iluminación RGB**: Gestión de anillos LED mediante `ally_center.py` (modos estáticos y dinámicos).
+- **Servicio de arranque**: Persistencia y restauración de ajustes a través de `/etc/ally-center.json` y `/etc/systemd/system/ally-center.service`.
 
 ## 3. Comandos y scripts internos
 
@@ -48,31 +32,31 @@ Documentación de referencia de archivos, rutas del kernel y funciones del proye
 
 | Script | Privilegios | Descripción |
 | :--- | :--- | :--- |
-| `sh estado.sh` | Usuario (sin `sudo`) | Lee directamente `/sys/` en `< 2 ms` y devuelve un JSON con modelo, RPM, temperatura instantánea de APU, consumo en Watts, estado AC, perfil, TDP, Boost y límite de batería. |
+| `sh estado.sh` | Usuario (sin `sudo`) | Consulta `/sys/` y `/etc/ally-center.json` en `< 2 ms` para generar un JSON con métricas de hardware (modelo, RPM, temperatura APU, vatios del chip, estado AC, batería y perfiles). |
 
 ### Control de hardware (`ally_center.py`)
 
 | Comando | Parámetros | Descripción |
 | :--- | :--- | :--- |
-| `estado` | *(ninguno)* | Comando heredado en Python que devuelve el mismo JSON de telemetría (sin `sudo`). |
-| `perfil` | `0`, `1` o `2` | Aplica perfil ACPI (`low-power`, `balanced`, `performance`) y Watts oficiales según AC/Batería. |
-| `tdp` | `7`..`30` | Fija `SPL`, `SPPT` y `FPPT` al valor indicado (tope `25W` en batería, `30W` en AC). |
-| `boost` | `0` o `1` | Activa o desactiva CPU Boost. |
-| `bateria` | `0` o `1` | Fija límite de carga al `80%` (`1`) o `100%` (`0`). |
-| `auto` | *(ninguno)* | Devuelve el control de ventiladores a la BIOS (`pwm1_enable = 2`). |
-| `ambos` | `0`..`100` `[guardar]` | Fija ambos ventiladores al `%` indicado (`guardar` persiste modo manual en `/etc/ally-center.json`). |
-| `cpu_fan` / `gpu_fan` | `0`..`100` | Ajusta individualmente CPU (`pwm1`) o GPU (`pwm2`). |
-| `guardar_curva` | `v1,v2,...,v8` | Guarda los 8 puntos en `/etc/ally-center.json` y los aplica al firmware. |
-| `boot` | *(ninguno)* | Ejecutado por `systemd` al arrancar para restaurar `/etc/ally-center.json`. |
+| `perfil` | `0`, `1` o `2` | Aplica perfiles ACPI (`low-power`, `balanced`, `performance`) y límites de vatios según la fuente de alimentación. |
+| `tdp` | `7..30 [boost_pico]` | Configura el `SPL` y ajusta `SPPT`/`FPPT` según el modo de impulso, respetando topes de `25W` en batería y `30W` en AC. |
+| `boost` | `0` o `1` | Activa o desactiva `CPU Boost` vía `cpufreq` y guarda la preferencia en `/etc/ally-center.json`. |
+| `bateria` | `0` o `1` | Alterna el límite de carga de la batería `BAT0` entre el 80% (`1`) y el 100% (`0`). |
+| `auto` | *(ninguno)* | Devuelve el control térmico de los ventiladores a la BIOS (`pwm1_enable = 2`). |
+| `ambos` / `cpu_fan` / `gpu_fan` | `0..100` | Ajustan la velocidad de los ventiladores de forma conjunta o individual, actualizando los modos en la configuración. |
+| `guardar_curva` | `v1,v2,...,v8` | Almacena y aplica una curva de ventilación personalizada de 8 puntos en el firmware. |
+| `rgb` / `rgb_live` / `rgb_tick` | `modo r g b brillo` | Gestiona los efectos e iluminación LED (estáticos o dinámicos basados en temperatura, batería u hora). |
+| `boot` | *(ninguno)* | Empleado por `systemd` durante el arranque para restaurar la última configuración guardada. |
 
+## 4. Integración con Steam Modo Juego y Sincronización Bidireccional (`ally_steam_bridge.py`)
 
-## 4. Integración con Steam Modo Juego (`ally_steam_bridge.py`)
+El sistema se integra de forma nativa con **Gamescope / Steam GamepadUI** mediante el protocolo de depuración remota de Chromium Embedded Framework (CEF), prescindiendo de plugins externos:
 
-Para ofrecer control directo desde **Gamescope / Steam GamepadUI** sin requerir plugins de terceros (como Decky Loader), el proyecto utiliza el protocolo de depuración remota de Chromium Embedded Framework (CEF):
-
-- **Activación CEF:** `install.sh` crea el archivo `.cef-enable-remote-debugging` en el directorio raíz de Steam (`~/.local/share/Steam/` y rutas Flatpak/symlink), habilitando la API JSON en `http://localhost:8080/json`.
-- **Detección exclusiva de la pestaña Rendimiento (`QuickAccess`):** `ally_steam_bridge.py` (gestionado por `~/.config/systemd/user/ally-steam-bridge.service`) establece conexión WebSocket con la ventana `QuickAccess` y verifica el encabezado activo (`RENDIMIENTO` / `PERFORMANCE` y equivalentes multi-idioma) para montar la tarjeta al final del contenedor scrollable únicamente en dicha pestaña, desmontándola automáticamente al cambiar a Configuraciones rápidas (`⚙️`).
-- **Telemetría en vivo y sincronización bidireccional:** Consulta cada 1.5 segundos el script rápido `estado.sh` y `/etc/ally-center.json` para actualizar en tiempo real temperatura APU, consumo en Watts, RPM de ambos ventiladores, modelo de consola y estado `AC` / `BAT`. Además, detecta cambios en el selector nativo de perfil de Steam para mantener ambos controles sincronizados.
-- **UX y navegación adaptada a mando (`D-Pad`):** Implementa un menú desplegable de perfiles de energía, bloqueo mutuo entre **Perfil Energía** y **Límite TDP Manual**, botones de acceso rápido (`13W`–`30W`), y gestión dinámica de `tabIndex` para que la cruceta salte automáticamente los controles bloqueados.
-- **Comunicación bidireccional (`Runtime.addBinding`):** Registra el canal `allyBridgeSend` en el contexto JS de Steam para recibir comandos (`estado`, `perfil`, `tdp`, `boost`, `curva`) y delegar la escritura en hardware a `sudo python3 ally_center.py`.
-
+- **Depuración CEF:** `install.sh` habilita la bandera en el directorio de Steam (`.cef-enable-remote-debugging`) para exponer la interfaz en `http://localhost:8080/json`.
+- **Inyección en Configuraciones rápidas:** `ally_steam_bridge.py` (ejecutado por un servicio de `systemd`) se conecta por WebSocket al panel lateral de Steam para añadir una tarjeta de control táctil compatible con el entorno.
+- **Estructura en 3 sub-pestañas:**
+  - **Telemetría superior:** Muestra modelo, estado de carga (`AC` / `BAT`), RPM, temperaturas, vatios y estimación de autonomía.
+  - **TDP:** Permite alternar perfiles de energía, ajustar el vataje mediante barra deslizante (`7W–30W`) y modificar parámetros de impulso (`CPU Boost` y `SPPT/FPPT`).
+  - **Ventiladores:** Ofrece modos automático (BIOS), manual con perfiles predefinidos o personalización mediante curva de 8 puntos.
+  - **RGB:** Controla patrones lumínicos, selección rápida de colores y niveles de brillo.
+- **Sincronización:** Emplea `/etc/ally-center.json` como repositorio central compartido con KDE Plasma (`main.qml`), integrando un sistema de protección anti-rebote (`2.5 s`) durante el ajuste táctil.
