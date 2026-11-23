@@ -527,12 +527,21 @@ if __name__ == "__main__":
         guardar_estado_sistema("modo_fan", "auto")
     elif comando in ("ambos", "cpu_fan", "gpu_fan") and args:
         pct = int(args.pop(0))
-        guardar = (args and args.pop(0) == "guardar")
         canales = ("pwm1", "pwm2") if comando == "ambos" else (("pwm1",) if comando == "cpu_fan" else ("pwm2",))
         aplicar_puntos(carpeta_curva, canales, list(pct for _ in range(8)))
-        if guardar and comando == "ambos":
-            guardar_estado_sistema("modo_fan", "manual")
+        guardar_estado_sistema("modo_fan", "manual")
+        if comando == "ambos":
+            guardar_estado_sistema("vincular_fans", True)
             guardar_estado_sistema("fan_pct", pct)
+            guardar_estado_sistema("cpu_pct", pct)
+            guardar_estado_sistema("gpu_pct", pct)
+        elif comando == "cpu_fan":
+            guardar_estado_sistema("vincular_fans", False)
+            guardar_estado_sistema("cpu_pct", pct)
+        elif comando == "gpu_fan":
+            guardar_estado_sistema("vincular_fans", False)
+            guardar_estado_sistema("gpu_pct", pct)
+
     elif comando == "curva" and args:
         puntos = list(int(x) for x in args.pop(0).split(","))
         if len(puntos) == 8:

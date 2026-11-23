@@ -5,12 +5,18 @@ import os
 import subprocess
 import urllib.request
 import websockets
-import struct
-import glob
 
 
 SCRIPT_ALLY = os.path.expanduser("~/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py")
 SCRIPT_ESTADO = os.path.expanduser("~/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/estado.sh")
+
+
+def obtener_targets():
+    try:
+        with urllib.request.urlopen("http://localhost:8080/json", timeout=1.5) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return []
 
 
 def ejecutar_ally(args):
@@ -24,10 +30,9 @@ def leer_estado_str():
     try:
         with open("/etc/ally-center.json", "r") as f:
             cfg = json.load(f)
-            if "curva" in cfg:
-                datos["curva"] = cfg["curva"]
-            if "tdp_manual" in cfg:
-                datos["tdp_manual"] = cfg["tdp_manual"]
+            for k in ("curva", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost", "bateria_80", "rgb_modo", "rgb", "rgb_brillo", "modo_fan", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"):
+                if k in cfg:
+                    datos[k] = cfg[k]
     except Exception:
         pass
     return json.dumps(datos)
@@ -38,851 +43,713 @@ JS_INJECT = """
     document.getElementById("ally-center-qam-section")?.remove();
     if (window.__allyObs) window.__allyObs.disconnect();
 
-    const TEMPS = Array.from({length: 8}, (_, i) => (i + 3) * 10);
+    const TEMPS = Array.of(30, 40, 50, 60, 70, 80, 90, 100);
+    const CURVA_DEF = Array.of(30, 40, 50, 60, 70, 80, 90, 100);
+
     let estado = {
         modelo: "Center ROG Ally X",
-        perfil: 1,
+        perfil: 2,
         tdp_manual: false,
-        tdp: 25,
+        tdp: 30,
+        tdp_boost: false,
         boost: false,
-        curva: Array.from({length: 8}, (_, i) => (i + 3) * 10),
+        bateria_80: true,
         ac_conectado: true,
+        bat_pct: 100,
+        bat_watts: "0.0",
+        bat_tiempo: "AC",
         temp: "--",
         watts: "--",
         cpu_rpm: 0,
-        gpu_rpm: 0
+        gpu_rpm: 0,
+        curva: CURVA_DEF.slice(),
+        modo_fan: "auto",
+        fan_pct: 50,
+        vincular_fans: true,
+        cpu_pct: 50,
+        gpu_pct: 50,
+
+        rgb_modo: "fijo",
+        rgb: Array.of(0, 210, 255),
+        rgb_brillo: 80
     };
 
-    let bloqueoSyncHasta = 0;
-    let ultimoPerfilKernel = null;
+    let tabActiva = "tdp";
+    let menuPerfilAbierto = false;
+    let curvaTodosJuntos = false;
 
-    window.__allyRecibirEstado = (jsonStr) => {
-        if (Date.now() < bloqueoSyncHasta) return;
-        try {
-            const nuevo = JSON.parse(jsonStr);
-            const cambioExternoPerfil = (
-                typeof nuevo.perfil === "number" && (
-                    (ultimoPerfilKernel !== null && nuevo.perfil !== ultimoPerfilKernel) ||
-                    (nuevo.tdp_manual === true && nuevo.perfil !== 2)
-                )
-            );
-            if (typeof nuevo.perfil === "number") ultimoPerfilKernel = nuevo.perfil;
+    function enviarComando(obj) {
+        if (obj.cmd !== "estado") {
+            window.__allyUltimaEdicion = Date.now();
+        }
+        if (typeof window.allyBridgeSend === "function") {
+            window.allyBridgeSend(JSON.stringify(obj));
+        }
+    }
 
-            if (typeof nuevo.tdp === "number" && nuevo.tdp >= 7) estado.tdp = nuevo.tdp;
-            Object.assign(estado, nuevo);
+    function tdpPorPerfil(perfil, ac) {
+        if (perfil === 0) return 13;
+        if (perfil === 1) return 17;
+        return ac ? 30 : 25;
+    }
 
-            if (cambioExternoPerfil) {
-                estado.tdp_manual = false;
-                estado.tdp_boost = false;
-                enviarComando({ cmd: "perfil", val: estado.perfil });
-            }
+    function crearSeccionAlly() {
+        const box = document.createElement("div");
+        box.id = "ally-center-qam-section";
+        box.style.cssText = "background: rgba(14, 20, 27, 0.94); border: 1px solid rgba(102, 192, 244, 0.28); border-radius: 10px; padding: 12px; width: 100%; box-sizing: border-box; margin: 14px 0 24px 0; color: #dcdedf; font-family: Motiva Sans, Arial, sans-serif; user-select: none;";
+        box.innerHTML = `
+
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span id="ally-tel-modelo" style="font-weight: 700; font-size: 13px; color: #66c0f4;">⚡ ${estado.modelo}</span>
+                <span id="ally-tel-ac" style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 5px; background: rgba(88, 214, 141, 0.18); border: 1px solid #58d68d; color: #58d68d; letter-spacing: 0.4px;">🔌 AC · 80%</span>
+            </div>
+
+            <div style="background: #1b2838; border-radius: 6px; padding: 7px 6px; margin-bottom: 10px;">
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center;">
+                    <div>
+                        <div style="font-size: 10px; color: #8b929a;">CPU</div>
+                        <strong id="ally-tel-cpu" style="font-size: 11px; color: #d6eaf8;">0 RPM</strong>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: #8b929a;">GPU</div>
+                        <strong id="ally-tel-gpu" style="font-size: 11px; color: #d6eaf8;">0 RPM</strong>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: #8b929a;">APU</div>
+                        <strong id="ally-tel-temp" style="font-size: 11px; color: #f5b041;">-- °C</strong>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: #8b929a;">Chip</div>
+                        <strong id="ally-tel-watts" style="font-size: 11px; color: #58d68d;">-- W</strong>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 6px; padding-top: 5px; font-size: 11px;">
+                    <span style="color: #8b929a;"><span id="ally-tel-bat-lbl">🔋 Consumo:</span> <strong id="ally-tel-bat-watts" style="color: #dcdedf;">0.0 W</strong></span>
+                    <span style="color: #8b929a;"><span id="ally-tel-tiempo-lbl">Restante:</span> <strong id="ally-tel-bat-tiempo" style="color: #66c0f4;">AC</strong></span>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1.35fr 1fr; gap: 5px; margin-bottom: 11px;">
+                <button class="ally-subtab" data-tab="tdp" style="display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid #66c0f4; background: #2a475e; color: #fff; white-space: nowrap;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12l4-4"/><path d="M7.5 16.5a6.5 6.5 0 1 1 9 0"/></svg>
+                    <span>TDP</span>
+                </button>
+                <button class="ally-subtab" data-tab="fan" style="display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a; white-space: nowrap;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 10.2a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6zm0-8.2c2.5 0 4.2 1.8 3.6 4.1-.4 1.5-1.5 2.4-2.5 3 .9.2 1.8.8 2.2 1.7 1.3-.8 2.9-1.1 4.4-.2 2.1 1.2 2.4 3.6.7 5.2-1.1 1-2.6 1.1-3.8.5-.3.9-.9 1.6-1.8 2 .3 1.5-.1 3.1-1.6 3.9-2.1 1.1-4.5.1-5.1-2.1-.4-1.4.1-2.8 1-3.7-.7-.6-1.1-1.5-1.1-2.5-1.5.2-3.1-.4-3.7-2-.9-2.2.4-4.5 2.7-4.8 1.4-.2 2.7.5 3.4 1.5.6-.7 1.5-1.1 2.5-1.1-.1-1.5.6-3.1 2.2-3.6.4-.1.8-.2 1.3-.2z"/></svg>
+                    <span>Ventiladores</span>
+                </button>
+                <button class="ally-subtab" data-tab="rgb" style="display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a; white-space: nowrap;">
+                    <svg width="14" height="14" viewBox="0 0 24 24"><defs><linearGradient id="allyRgbGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff3b30"/><stop offset="35%" stop-color="#ffcc00"/><stop offset="68%" stop-color="#34c759"/><stop offset="100%" stop-color="#007aff"/></linearGradient></defs><circle cx="12" cy="12" r="9" fill="url(#allyRgbGrad)"/><circle cx="12" cy="12" r="3.2" fill="#1b2838"/></svg>
+                    <span>RGB</span>
+                </button>
+            </div>
+
+
+
+
+
+
+
+            <div id="ally-pane-tdp">
+                <div id="ally-perfil-wrapper" style="position: relative; margin-bottom: 10px;">
+                    <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer;">
+                        <span>Perfil Energía</span>
+                        <span id="ally-perfil-badge" style="background: #2a475e; border: 1px solid #66c0f4; color: #fff; border-radius: 5px; padding: 5px 10px; font-weight: 600; font-size: 12px;">Rendimiento (30W) ▾</span>
+                    </div>
+                    <div id="ally-perfil-menu" style="display: none; position: absolute; right: 0; top: 32px; width: 185px; background: #171d25; border: 1px solid #66c0f4; border-radius: 6px; z-index: 9999; overflow: hidden; box-shadow: 0 6px 16px rgba(0,0,0,0.75);">
+                        <div class="ally-perfil-opt" data-val="0" style="padding: 9px 12px; font-size: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.08);">Ahorro (13W)</div>
+                        <div class="ally-perfil-opt" data-val="1" style="padding: 9px 12px; font-size: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.08);">Equilibrado (17W)</div>
+                        <div class="ally-perfil-opt" data-val="2" style="padding: 9px 12px; font-size: 12px; cursor: pointer;">Rendimiento (30W)</div>
+                    </div>
+                </div>
+
+                <div id="ally-row-manual" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 8px; cursor: pointer; padding: 3px 0;">
+                    <span>Límite TDP Manual</span>
+                    <span id="ally-manual-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">OFF</span>
+                </div>
+                <div id="ally-manual-box" style="opacity: 0.4; pointer-events: none; transition: opacity 0.15s; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                        <span>Límite TDP</span>
+                        <strong id="ally-tdp-val" style="color: #66c0f4;">30 W</strong>
+                    </div>
+                    <input id="ally-tdp-slider" type="range" min="7" max="30" value="30" style="width: 100%; accent-color: #66c0f4; height: 22px; margin-bottom: 8px; cursor: pointer;">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px;">
+                        <button class="ally-preset-btn" data-w="13" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">13W</button>
+                        <button class="ally-preset-btn" data-w="17" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">17W</button>
+                        <button class="ally-preset-btn" data-w="25" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">25W</button>
+                        <button id="ally-preset-30" class="ally-preset-btn" data-w="30" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">30W</button>
+                    </div>
+                    <div id="ally-row-tdp-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 0;">
+                        <span>Boost Pico (SPPT / FPPT)</span>
+                        <span id="ally-tdp-boost-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">OFF</span>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+                    <div id="ally-row-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 0;">
+                        <span>CPU Boost</span>
+                        <span id="ally-boost-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">OFF</span>
+                    </div>
+                    <div id="ally-row-bat80" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 0;">
+                        <span>Cuidado de Batería (80%)</span>
+                        <span id="ally-bat80-badge" style="background: #66c0f4; color: #0e141b; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">ON</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ally-pane-fan" style="display: none;">
+                <div style="position: relative; margin-bottom: 10px;">
+                    <div id="ally-row-fan-modo" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer;">
+                        <span>Modo</span>
+                        <span id="ally-fan-modo-badge" style="background: #2a475e; border: 1px solid #66c0f4; color: #fff; border-radius: 5px; padding: 5px 10px; font-weight: 600; font-size: 12px;">Automático (BIOS) ▾</span>
+                    </div>
+                    <div id="ally-fan-modo-menu" style="display: none; position: absolute; right: 0; top: 32px; width: 195px; background: #171d25; border: 1px solid #66c0f4; border-radius: 6px; z-index: 9999; overflow: hidden; box-shadow: 0 6px 16px rgba(0,0,0,0.75);">
+                        <div class="ally-fan-modo-opt" data-modo="auto" style="padding: 9px 12px; font-size: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.08);">Automático (BIOS)</div>
+                        <div class="ally-fan-modo-opt" data-modo="manual" style="padding: 9px 12px; font-size: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.08);">Manual (Perfiles)</div>
+                        <div class="ally-fan-modo-opt" data-modo="curva" style="padding: 9px 12px; font-size: 12px; cursor: pointer;">Curva Personalizada</div>
+                    </div>
+                </div>
+
+                <div id="ally-fan-sub-auto" style="font-size: 11px; color: #8b929a; text-align: center; padding: 10px 4px;">
+                    Control automático gestionado por la BIOS.
+                </div>
+
+                <div id="ally-fan-sub-manual" style="display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
+                        <button class="ally-fan-preset" data-pct="30" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Silencioso</button>
+                        <button class="ally-fan-preset" data-pct="60" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Equilibrado</button>
+                        <button class="ally-fan-preset" data-pct="90" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Turbo</button>
+                    </div>
+
+                    <div id="ally-row-vincular" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 8px; cursor: pointer; padding: 3px 0;">
+                        <span>Vincular CPU + GPU</span>
+                        <span id="ally-vincular-badge" style="background: #66c0f4; color: #0e141b; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">ON</span>
+                    </div>
+
+                    <div id="ally-fan-ambos-box">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                            <span>Ambos</span>
+                            <strong id="ally-fan-ambos-val" style="color: #66c0f4;">50%</strong>
+                        </div>
+                        <input id="ally-fan-ambos-slider" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+                    </div>
+
+                    <div id="ally-fan-sep-box" style="display: none; flex-direction: column; gap: 8px;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                                <span>CPU Fan</span>
+                                <strong id="ally-fan-cpu-val" style="color: #66c0f4;">50%</strong>
+                            </div>
+                            <input id="ally-fan-cpu-slider" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                                <span>GPU Fan</span>
+                                <strong id="ally-fan-gpu-val" style="color: #66c0f4;">50%</strong>
+                            </div>
+                            <input id="ally-fan-gpu-slider" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="ally-fan-sub-curva" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 12px; font-weight: 700;">Puntos de Curva</span>
+                        <div style="display: flex; gap: 6px;">
+                            <button id="ally-btn-curva-reset" title="Restaurar curva" style="background: #2a475e; color: #fff; border: none; border-radius: 4px; padding: 5px 9px; font-size: 12px; font-weight: 700; cursor: pointer;">↺</button>
+                            <button id="ally-row-curva-modo" style="background: #2a475e; color: #fff; border: none; border-radius: 4px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer;">Cascada</button>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        ${TEMPS.map((t, i) => `
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="width: 36px; font-size: 11px; color: #8b929a;">${t}°C</span>
+                                <input class="ally-pt" data-idx="${i}" type="range" min="0" max="100" value="${CURVA_DEF.at(i)}" style="flex: 1; accent-color: #66c0f4; height: 20px; cursor: pointer;">
+                                <span class="ally-pt-val" style="width: 34px; text-align: right; font-size: 11px; font-weight: 600;">${CURVA_DEF.at(i)}%</span>
+                            </div>
+                        `).join("")}
+                    </div>
+                </div>
+            </div>
+
+
+            <div id="ally-pane-rgb" style="display: none;">
+                <div style="margin-bottom: 10px;">
+                    <div style="font-size: 12px; color: #8b929a; margin-bottom: 6px;">Modo de Iluminación</div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
+                        <button class="ally-rgb-modo" data-modo="fijo" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid #66c0f4; background: #2a475e; color: #fff;">Color Fijo</button>
+                        <button class="ally-rgb-modo" data-modo="temp" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a;">Temperatura APU</button>
+                        <button class="ally-rgb-modo" data-modo="bateria" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a;">Nivel Batería</button>
+                        <button class="ally-rgb-modo" data-modo="hora" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a;">Hora del Día</button>
+                    </div>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <div style="font-size: 12px; color: #8b929a; margin-bottom: 6px;">Colores Rápidos</div>
+                    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;">
+                        <button class="ally-rgb-swatch" data-rgb="0,210,255" style="height: 28px; border-radius: 5px; border: 2px solid #fff; background: rgb(0,210,255); cursor: pointer;"></button>
+                        <button class="ally-rgb-swatch" data-rgb="255,30,50" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(255,30,50); cursor: pointer;"></button>
+                        <button class="ally-rgb-swatch" data-rgb="40,230,90" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(40,230,90); cursor: pointer;"></button>
+                        <button class="ally-rgb-swatch" data-rgb="170,60,255" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(170,60,255); cursor: pointer;"></button>
+                        <button class="ally-rgb-swatch" data-rgb="255,150,0" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(255,150,0); cursor: pointer;"></button>
+                        <button class="ally-rgb-swatch" data-rgb="255,255,255" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(255,255,255); cursor: pointer;"></button>
+                    </div>
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                        <span>Brillo LED</span>
+                        <strong id="ally-rgb-brillo-val" style="color: #66c0f4;">80%</strong>
+                    </div>
+                    <input id="ally-rgb-brillo" type="range" min="0" max="100" value="80" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+                </div>
+            </div>
+        `;
+
+        box.querySelectorAll(".ally-subtab").forEach(btn => {
+            btn.onclick = () => {
+                tabActiva = btn.dataset.tab;
+                box.querySelectorAll(".ally-subtab").forEach(b => {
+                    const activo = b.dataset.tab === tabActiva;
+                    b.style.background = activo ? "#2a475e" : "#1b2838";
+                    b.style.color = activo ? "#fff" : "#8b929a";
+                    b.style.borderColor = activo ? "#66c0f4" : "transparent";
+                });
+                box.querySelector("#ally-pane-tdp").style.display = tabActiva === "tdp" ? "block" : "none";
+                box.querySelector("#ally-pane-fan").style.display = tabActiva === "fan" ? "block" : "none";
+                box.querySelector("#ally-pane-rgb").style.display = tabActiva === "rgb" ? "block" : "none";
+            };
+        });
+
+        const rowPerfil = box.querySelector("#ally-row-perfil");
+        const menuPerfil = box.querySelector("#ally-perfil-menu");
+        rowPerfil.onclick = (e) => {
+            e.stopPropagation();
+            if (estado.tdp_manual) return;
+            menuPerfilAbierto = !menuPerfilAbierto;
+            menuPerfil.style.display = menuPerfilAbierto ? "block" : "none";
+        };
+        box.querySelectorAll(".ally-perfil-opt").forEach(opt => {
+            opt.onclick = (e) => {
+                e.stopPropagation();
+                const val = parseInt(opt.dataset.val);
+                estado.perfil = val;
+                estado.tdp = tdpPorPerfil(val, estado.ac_conectado);
+                menuPerfilAbierto = false;
+                menuPerfil.style.display = "none";
+                actualizarUI();
+                enviarComando({ cmd: "perfil", val });
+            };
+        });
+
+        box.querySelector("#ally-row-manual").onclick = () => {
+            estado.tdp_manual = !estado.tdp_manual;
             if (!estado.tdp_manual) {
-                estado.tdp = (estado.perfil === 0) ? 13 : (estado.perfil === 1 ? 17 : (estado.ac_conectado ? 30 : 25));
+                estado.tdp = tdpPorPerfil(estado.perfil, estado.ac_conectado);
+                estado.tdp_boost = false;
+                actualizarUI();
+                enviarComando({ cmd: "perfil", val: estado.perfil });
+            } else {
+                actualizarUI();
+                enviarComando({ cmd: "tdp", val: estado.tdp, boost_pico: estado.tdp_boost ? 1 : 0 });
+            }
+        };
+
+        const tdpSlider = box.querySelector("#ally-tdp-slider");
+        const setTdp = (w) => {
+            const maxW = estado.ac_conectado ? 30 : 25;
+            w = Math.max(7, Math.min(maxW, w));
+            estado.tdp = w;
+            if (w < 25) estado.tdp_boost = false;
+            actualizarUI();
+            enviarComando({ cmd: "tdp", val: w, boost_pico: estado.tdp_boost ? 1 : 0 });
+        };
+        tdpSlider.oninput = () => setTdp(parseInt(tdpSlider.value));
+        box.querySelectorAll(".ally-preset-btn").forEach(btn => {
+            btn.onclick = () => {
+                if (!estado.tdp_manual) estado.tdp_manual = true;
+                setTdp(parseInt(btn.dataset.w));
+            };
+        });
+        box.querySelector("#ally-row-tdp-boost").onclick = () => {
+            if (!estado.tdp_manual || estado.tdp < 25) return;
+            estado.tdp_boost = !estado.tdp_boost;
+            actualizarUI();
+            enviarComando({ cmd: "tdp", val: estado.tdp, boost_pico: estado.tdp_boost ? 1 : 0 });
+        };
+
+        box.querySelector("#ally-row-boost").onclick = () => {
+            estado.boost = !estado.boost;
+            actualizarUI();
+            enviarComando({ cmd: "cpu_boost", val: estado.boost ? 1 : 0 });
+        };
+
+        box.querySelector("#ally-row-bat80").onclick = () => {
+            estado.bateria_80 = !estado.bateria_80;
+            actualizarUI();
+            enviarComando({ cmd: "bateria", val: estado.bateria_80 ? 1 : 0 });
+        };
+
+        // Selector de Modo Ventiladores (Automático / Manual / Curva)
+        let menuFanModoAbierto = false;
+        const rowFanModo = box.querySelector("#ally-row-fan-modo");
+        const menuFanModo = box.querySelector("#ally-fan-modo-menu");
+        rowFanModo.onclick = (e) => {
+            e.stopPropagation();
+            menuFanModoAbierto = !menuFanModoAbierto;
+            menuFanModo.style.display = menuFanModoAbierto ? "block" : "none";
+        };
+        box.querySelectorAll(".ally-fan-modo-opt").forEach(opt => {
+            opt.onclick = (e) => {
+                e.stopPropagation();
+                const m = opt.dataset.modo;
+                estado.modo_fan = m;
+                menuFanModoAbierto = false;
+                menuFanModo.style.display = "none";
+                actualizarUI();
+                if (m === "auto") {
+                    enviarComando({ cmd: "fan_auto" });
+                } else if (m === "manual") {
+                    if (estado.vincular_fans) {
+                        enviarComando({ cmd: "fan_ambos", val: estado.fan_pct });
+                    } else {
+                        enviarComando({ cmd: "fan_sep", cpu: estado.cpu_pct, gpu: estado.gpu_pct });
+                    }
+                } else if (m === "curva") {
+                    enviarComando({ cmd: "guardar_curva", val: estado.curva.slice() });
+                }
+            };
+        });
+
+        // Presets Manuales: Silencioso (30%), Equilibrado (60%), Turbo (90%)
+        box.querySelectorAll(".ally-fan-preset").forEach(btn => {
+            btn.onclick = () => {
+                const pct = parseInt(btn.dataset.pct);
+                estado.modo_fan = "manual";
+                estado.vincular_fans = true;
+                estado.fan_pct = pct;
+                estado.cpu_pct = pct;
+                estado.gpu_pct = pct;
+                actualizarUI();
+                enviarComando({ cmd: "fan_ambos", val: pct });
+            };
+        });
+
+        // Toggle Vincular CPU + GPU
+        box.querySelector("#ally-row-vincular").onclick = () => {
+            estado.vincular_fans = !estado.vincular_fans;
+            actualizarUI();
+            if (estado.vincular_fans) {
+                enviarComando({ cmd: "fan_ambos", val: estado.fan_pct });
+            } else {
+                enviarComando({ cmd: "fan_sep", cpu: estado.cpu_pct, gpu: estado.gpu_pct });
+            }
+        };
+
+        // Sliders Manuales (Ambos / CPU / GPU)
+        let timerFanMan = null;
+        const slAmbos = box.querySelector("#ally-fan-ambos-slider");
+        slAmbos.oninput = () => {
+            const pct = parseInt(slAmbos.value);
+            estado.fan_pct = pct;
+            estado.cpu_pct = pct;
+            estado.gpu_pct = pct;
+            actualizarUI();
+            clearTimeout(timerFanMan);
+            timerFanMan = setTimeout(() => enviarComando({ cmd: "fan_ambos", val: pct }), 150);
+        };
+        const slCpu = box.querySelector("#ally-fan-cpu-slider");
+        slCpu.oninput = () => {
+            estado.cpu_pct = parseInt(slCpu.value);
+            actualizarUI();
+            clearTimeout(timerFanMan);
+            timerFanMan = setTimeout(() => enviarComando({ cmd: "fan_sep", cpu: estado.cpu_pct, gpu: estado.gpu_pct }), 150);
+        };
+        const slGpu = box.querySelector("#ally-fan-gpu-slider");
+        slGpu.oninput = () => {
+            estado.gpu_pct = parseInt(slGpu.value);
+            actualizarUI();
+            clearTimeout(timerFanMan);
+            timerFanMan = setTimeout(() => enviarComando({ cmd: "fan_sep", cpu: estado.cpu_pct, gpu: estado.gpu_pct }), 150);
+        };
+
+
+        const btnModoCurva = box.querySelector("#ally-row-curva-modo");
+        btnModoCurva.onclick = () => {
+            curvaTodosJuntos = !curvaTodosJuntos;
+            btnModoCurva.textContent = curvaTodosJuntos ? "Todos juntos" : "Cascada";
+            btnModoCurva.style.background = curvaTodosJuntos ? "#66c0f4" : "#2a475e";
+            btnModoCurva.style.color = curvaTodosJuntos ? "#0e141b" : "#fff";
+        };
+        box.querySelector("#ally-btn-curva-reset").onclick = () => {
+            estado.curva = CURVA_DEF.slice();
+            actualizarUI();
+            enviarComando({ cmd: "guardar_curva", val: estado.curva });
+        };
+
+        const slidersFan = Array.from(box.querySelectorAll(".ally-pt"));
+        let timerFan = null;
+        slidersFan.forEach((sl, idx) => {
+            sl.oninput = () => {
+                const v = parseInt(sl.value);
+                if (curvaTodosJuntos) {
+                    estado.curva = estado.curva.map(() => v);
+                } else {
+                    estado.curva.splice(idx, 1, v);
+                    for (let j = idx + 1; j < 8; j++) {
+                        if (estado.curva.at(j) < v) estado.curva.splice(j, 1, v);
+                    }
+                    for (let j = idx - 1; j >= 0; j--) {
+                        if (estado.curva.at(j) > v) estado.curva.splice(j, 1, v);
+                    }
+                }
+                actualizarUI();
+                clearTimeout(timerFan);
+                timerFan = setTimeout(() => {
+                    enviarComando({ cmd: "guardar_curva", val: estado.curva.slice() });
+                }, 180);
+            };
+        });
+
+        const aplicarRgb = () => {
+            actualizarUI();
+            enviarComando({
+                cmd: "rgb",
+                modo: estado.rgb_modo,
+                rgb: estado.rgb,
+                brillo: estado.rgb_brillo
+            });
+        };
+        box.querySelectorAll(".ally-rgb-modo").forEach(btn => {
+            btn.onclick = () => {
+                estado.rgb_modo = btn.dataset.modo;
+                aplicarRgb();
+            };
+        });
+        box.querySelectorAll(".ally-rgb-swatch").forEach(btn => {
+            btn.onclick = () => {
+                estado.rgb = btn.dataset.rgb.split(",").map(Number);
+                estado.rgb_modo = "fijo";
+                aplicarRgb();
+            };
+        });
+        const brilloSlider = box.querySelector("#ally-rgb-brillo");
+        let timerRgb = null;
+        brilloSlider.oninput = () => {
+            estado.rgb_brillo = parseInt(brilloSlider.value);
+            actualizarUI();
+            clearTimeout(timerRgb);
+            timerRgb = setTimeout(aplicarRgb, 150);
+        };
+
+        return box;
+    }
+    function actualizarUI() {
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec) return;
+
+        sec.querySelector("#ally-tel-modelo").textContent = `⚡ ${estado.modelo || "Center ROG Ally X"}`;
+        sec.querySelector("#ally-tel-ac").textContent = estado.ac_conectado ? "AC" : "BAT";
+        sec.querySelector("#ally-tel-temp").textContent = `${estado.temp ?? "--"} °C`;
+        sec.querySelector("#ally-tel-watts").textContent = `${estado.watts ?? "--"} W`;
+        sec.querySelector("#ally-tel-cpu").textContent = `${estado.cpu_rpm ?? 0} RPM`;
+        sec.querySelector("#ally-tel-gpu").textContent = `${estado.gpu_rpm ?? 0} RPM`;
+        const acEl = sec.querySelector("#ally-tel-ac");
+        const pctBat = estado.bat_pct ?? 100;
+        if (estado.ac_conectado) {
+            acEl.textContent = `🔌 AC · ${pctBat}%`;
+            acEl.style.background = "rgba(88, 214, 141, 0.18)";
+            acEl.style.borderColor = "#58d68d";
+            acEl.style.color = "#58d68d";
+        } else {
+            acEl.textContent = `🔋 BAT · ${pctBat}%`;
+            acEl.style.background = "rgba(245, 176, 65, 0.18)";
+            acEl.style.borderColor = "#f5b041";
+            acEl.style.color = "#f5b041";
+        }
+        const batLbl = sec.querySelector("#ally-tel-bat-lbl");
+        const batWattsEl = sec.querySelector("#ally-tel-bat-watts");
+        const tiempoLbl = sec.querySelector("#ally-tel-tiempo-lbl");
+        const tiempoEl = sec.querySelector("#ally-tel-bat-tiempo");
+        const wBat = parseFloat(estado.bat_watts || "0");
+
+        if (estado.ac_conectado && wBat < 0.5) {
+            batLbl.textContent = "🔋 Batería:";
+            batWattsEl.textContent = estado.bateria_80 ? "Límite 80%" : "Completa";
+            batWattsEl.style.color = "#58d68d";
+            tiempoLbl.textContent = "Estado:";
+            tiempoEl.textContent = "En reposo";
+            tiempoEl.style.color = "#58d68d";
+        } else if (estado.ac_conectado) {
+            batLbl.textContent = "⚡ Cargando:";
+            batWattsEl.textContent = `+${estado.bat_watts} W`;
+            batWattsEl.style.color = "#66c0f4";
+            tiempoLbl.textContent = "Estado:";
+            tiempoEl.textContent = "En carga";
+            tiempoEl.style.color = "#66c0f4";
+        } else {
+            batLbl.textContent = "🔋 Consumo:";
+            batWattsEl.textContent = `${estado.bat_watts ?? "0.0"} W`;
+            batWattsEl.style.color = "#dcdedf";
+            tiempoLbl.textContent = "Restante:";
+            tiempoEl.textContent = estado.bat_tiempo || "--";
+            tiempoEl.style.color = "#66c0f4";
+        }
+        const pMax = estado.ac_conectado ? "30W" : "25W";
+        const nombres = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${pMax})` };
+        sec.querySelector("#ally-perfil-badge").textContent = (nombres[estado.perfil] ?? `Rendimiento (${pMax})`) + " ▾";
+        const optRend = sec.querySelector('.ally-perfil-opt[data-val="2"]');
+        if (optRend) optRend.textContent = `Rendimiento (${pMax})`;
+
+        const manualOn = Boolean(estado.tdp_manual);
+        const mBadge = sec.querySelector("#ally-manual-badge");
+        mBadge.textContent = manualOn ? "ON" : "OFF";
+        mBadge.style.background = manualOn ? "#66c0f4" : "#2a475e";
+        mBadge.style.color = manualOn ? "#0e141b" : "#fff";
+
+        const mBox = sec.querySelector("#ally-manual-box");
+        mBox.style.opacity = manualOn ? "1" : "0.4";
+        mBox.style.pointerEvents = manualOn ? "auto" : "none";
+
+        const pWrap = sec.querySelector("#ally-perfil-wrapper");
+        pWrap.style.opacity = manualOn ? "0.4" : "1";
+        pWrap.style.pointerEvents = manualOn ? "none" : "auto";
+
+        const preset30 = sec.querySelector("#ally-preset-30");
+        if (preset30) preset30.style.display = estado.ac_conectado ? "block" : "none";
+        const maxActual = estado.ac_conectado ? 30 : 25;
+        if (!manualOn) {
+            estado.tdp = tdpPorPerfil(estado.perfil, estado.ac_conectado);
+        } else if (estado.tdp > maxActual) {
+            estado.tdp = maxActual;
+        }
+        const tdpS = sec.querySelector("#ally-tdp-slider");
+        tdpS.max = maxActual;
+        tdpS.value = estado.tdp;
+        sec.querySelector("#ally-tdp-val").textContent = `${estado.tdp} W`;
+
+        const tbHabilitado = manualOn && estado.tdp >= 25;
+        const tbActivo = tbHabilitado && Boolean(estado.tdp_boost);
+        const tbRow = sec.querySelector("#ally-row-tdp-boost");
+        const tbBadge = sec.querySelector("#ally-tdp-boost-badge");
+        tbRow.style.opacity = tbHabilitado ? "1" : "0.4";
+        tbRow.style.pointerEvents = tbHabilitado ? "auto" : "none";
+        tbBadge.textContent = tbActivo ? "ON" : "OFF";
+        tbBadge.style.background = tbActivo ? "#66c0f4" : "#2a475e";
+        tbBadge.style.color = tbActivo ? "#0e141b" : "#fff";
+
+        const bBadge = sec.querySelector("#ally-boost-badge");
+        bBadge.textContent = estado.boost ? "ON" : "OFF";
+        bBadge.style.background = estado.boost ? "#66c0f4" : "#2a475e";
+        bBadge.style.color = estado.boost ? "#0e141b" : "#fff";
+
+        const batBadge = sec.querySelector("#ally-bat80-badge");
+        batBadge.textContent = estado.bateria_80 ? "ON" : "OFF";
+        batBadge.style.background = estado.bateria_80 ? "#66c0f4" : "#2a475e";
+        batBadge.style.color = estado.bateria_80 ? "#0e141b" : "#fff";
+
+
+        const modoFan = estado.modo_fan || "auto";
+        const nombresFan = { auto: "Automático (BIOS)", manual: "Manual (Perfiles)", curva: "Curva Personalizada" };
+        sec.querySelector("#ally-fan-modo-badge").textContent = (nombresFan[modoFan] || "Automático (BIOS)") + " ▾";
+        sec.querySelector("#ally-fan-sub-auto").style.display = modoFan === "auto" ? "block" : "none";
+        sec.querySelector("#ally-fan-sub-manual").style.display = modoFan === "manual" ? "block" : "none";
+        sec.querySelector("#ally-fan-sub-curva").style.display = modoFan === "curva" ? "block" : "none";
+
+        const vincOn = Boolean(estado.vincular_fans);
+        const vincBadge = sec.querySelector("#ally-vincular-badge");
+        vincBadge.textContent = vincOn ? "ON" : "OFF";
+        vincBadge.style.background = vincOn ? "#66c0f4" : "#2a475e";
+        vincBadge.style.color = vincOn ? "#0e141b" : "#fff";
+        sec.querySelector("#ally-fan-ambos-box").style.display = vincOn ? "block" : "none";
+        sec.querySelector("#ally-fan-sep-box").style.display = vincOn ? "none" : "flex";
+
+        const pctAmbos = estado.fan_pct ?? 50;
+        sec.querySelector("#ally-fan-ambos-slider").value = pctAmbos;
+        sec.querySelector("#ally-fan-ambos-val").textContent = `${pctAmbos}%`;
+        sec.querySelector("#ally-fan-cpu-slider").value = estado.cpu_pct ?? pctAmbos;
+        sec.querySelector("#ally-fan-cpu-val").textContent = `${estado.cpu_pct ?? pctAmbos}%`;
+        sec.querySelector("#ally-fan-gpu-slider").value = estado.gpu_pct ?? pctAmbos;
+        sec.querySelector("#ally-fan-gpu-val").textContent = `${estado.gpu_pct ?? pctAmbos}%`;
+
+        if (Array.isArray(estado.curva) && estado.curva.length === 8) {
+            const vals = sec.querySelectorAll(".ally-pt-val");
+            sec.querySelectorAll(".ally-pt").forEach((sl, i) => {
+                sl.value = estado.curva.at(i);
+                if (vals.item(i)) vals.item(i).textContent = `${estado.curva.at(i)}%`;
+            });
+        }
+
+        sec.querySelectorAll(".ally-rgb-modo").forEach(btn => {
+            const act = btn.dataset.modo === estado.rgb_modo;
+            btn.style.background = act ? "#2a475e" : "#1b2838";
+            btn.style.color = act ? "#fff" : "#8b929a";
+            btn.style.borderColor = act ? "#66c0f4" : "transparent";
+        });
+        sec.querySelector("#ally-rgb-brillo").value = estado.rgb_brillo ?? 80;
+        sec.querySelector("#ally-rgb-brillo-val").textContent = `${estado.rgb_brillo ?? 80}%`;
+    }
+    window.__allyActualizarEstado = (jsonStr) => {
+        try {
+            const nuevo = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
+            const editandoReciente = window.__allyUltimaEdicion && (Date.now() - window.__allyUltimaEdicion < 2500);
+            if (editandoReciente) {
+                estado.temp = nuevo.temp;
+                estado.watts = nuevo.watts;
+                estado.cpu_rpm = nuevo.cpu_rpm;
+                estado.gpu_rpm = nuevo.gpu_rpm;
+                estado.ac_conectado = nuevo.ac_conectado;
+            } else {
+                Object.assign(estado, nuevo);
             }
             actualizarUI();
         } catch (e) {}
     };
 
-    function pausarSyncSteam() { bloqueoSyncHasta = Date.now() + 2500; }
+    if (window.__allyTelTimer) clearInterval(window.__allyTelTimer);
+    window.__allyTelTimer = setInterval(() => {
+        if (document.getElementById("ally-center-qam-section")) {
+            enviarComando({ cmd: "estado" });
+        }
+    }, 2000);
 
-    function enviarComando(obj) {
-        if (obj && obj.cmd !== "estado") pausarSyncSteam();
-        if (window.allyBridgeSend) window.allyBridgeSend(JSON.stringify(obj));
-    }
+    function intentarMontarEnConfigRapida() {
+        const secExistente = document.getElementById("ally-center-qam-section");
+        if (secExistente && secExistente.isConnected) return;
 
-    function aplicarEstiloFoco(el) {
-        el.setAttribute("tabindex", "0");
-        el.style.outline = "none";
-        el.style.borderRadius = "6px";
-        el.style.padding = "4px 6px";
-        el.style.transition = "background 0.15s, box-shadow 0.15s";
-        el.addEventListener("focus", () => {
-            el.style.background = "rgba(102, 192, 244, 0.18)";
-            el.style.boxShadow = "0 0 0 2px #66c0f4";
-            el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        const wifiEl = Array.from(document.querySelectorAll("div, span, label")).find(el => {
+            const t = (el.textContent || "").trim();
+            return t === "Wi-Fi" || t === "Modo avión" || t === "Airplane Mode";
         });
-        el.addEventListener("blur", () => {
-            el.style.background = "transparent";
-            el.style.boxShadow = "none";
-        });
-    }
+        if (!wifiEl) return;
 
-
-
-    function crearSeccionAlly() {
-        const box = document.createElement("div");
-        box.id = "ally-center-qam-section";
-        box.style.cssText = "margin: 14px 10px; padding: 12px; background: #171a21; border-radius: 8px; border: 1px solid rgba(102,192,244,0.45); color: #fff; font-family: sans-serif; box-sizing: border-box; position: relative; z-index: 10;";
-        const getMaxTdp = () => estado.ac_conectado ? 30 : 25;
-        const maxTdp = getMaxTdp();
-        const perfMax = estado.ac_conectado ? "30W" : "25W";
-        const nombresPerfil = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${perfMax})` };
-        const textoPerfil = nombresPerfil[estado.perfil] ?? "Equilibrado (17W)";
-        const manualActivo = Boolean(estado.tdp_manual);
-
-        let html = `
-            <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #66c0f4; text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                <span>⚡ <span id="ally-tel-modelo">${estado.modelo || "Center ROG Ally X"}</span></span>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span id="ally-btn-mando" style="background: #2a475e; color: #66c0f4; border: 1px solid rgba(102,192,244,0.4); border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; text-transform: none;">🎮 Mando</span>
-                    <span id="ally-tel-ac" style="font-size: 11px; color: #8b929a;">${estado.ac_conectado ? "AC" : "BAT"}</span>
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(0,0,0,0.28); padding: 8px; border-radius: 6px; margin-bottom: 12px; font-size: 11px;">
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #8b929a;">APU</span>
-                    <strong id="ally-tel-temp" style="color: #f5b041;">${estado.temp} °C</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #8b929a;">Consumo</span>
-                    <strong id="ally-tel-watts" style="color: #58d68d;">${estado.watts} W</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #8b929a;">CPU Fan</span>
-                    <strong id="ally-tel-cpu" style="color: #d6eaf8;">${estado.cpu_rpm} RPM</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #8b929a;">GPU Fan</span>
-                    <strong id="ally-tel-gpu" style="color: #d6eaf8;">${estado.gpu_rpm} RPM</strong>
-                </div>
-            </div>
-
-                <div id="ally-perfil-wrapper" style="position: relative; margin-bottom: 10px; opacity: ${manualActivo ? "0.4" : "1"}; pointer-events: ${manualActivo ? "none" : "auto"}; transition: opacity 0.15s;">
-                <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; cursor: pointer;">
-                    <span>Perfil Energía</span>
-                    <span id="ally-perfil-badge" style="background: #2a475e; border: 1px solid #66c0f4; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 600; font-size: 12px;">
-                        ${textoPerfil} ▾
-                    </span>
-                </div>
-            <div id="ally-perfil-menu" style="display: none; flex-direction: column; gap: 4px; margin-top: 6px; background: #171a21; border: 1px solid rgba(102, 192, 244, 0.35); border-radius: 6px; padding: 6px;">
-                 <div class="ally-perfil-opt" data-val="0" style="padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">Ahorro (13W)</div>
-                 <div class="ally-perfil-opt" data-val="1" style="padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">Equilibrado (17W)</div>
-                 <div class="ally-perfil-opt" data-val="2" style="padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">Rendimiento (${perfMax})</div>
-            </div>
-
-            </div>
-
-
-            <div id="ally-row-manual-toggle" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 8px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; cursor: pointer;">
-                <span>Límite TDP Manual</span>
-                <span id="ally-manual-badge" style="background: ${manualActivo ? "#66c0f4" : "#2a475e"}; color: ${manualActivo ? "#0e141b" : "#fff"}; border-radius: 4px; padding: 3px 10px; font-weight: bold; font-size: 11px;">
-                    ${manualActivo ? "ON" : "OFF"}
-                </span>
-            </div>
-
-            <div id="ally-manual-box" style="opacity: ${manualActivo ? "1" : "0.4"}; pointer-events: ${manualActivo ? "auto" : "none"}; margin-bottom: 10px; transition: opacity 0.15s;">
-                <div id="ally-row-tdp" style="margin-bottom: 8px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
-                        <span>Límite TDP</span>
-                        <strong id="ally-tdp-val" style="color: #66c0f4; flex-shrink: 0;">${estado.tdp} W</strong>
-                    </div>
-                    <input id="ally-tdp-slider" type="range" min="7" max="${maxTdp}" value="${estado.tdp}" style="width: 100%; accent-color: #66c0f4; cursor: pointer;">
-            </div>
-
-            <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; width: 100%; box-sizing: border-box;">
-                 <div class="ally-preset-btn" data-w="13" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; text-align:center; cursor:pointer; box-sizing:border-box;">13W</div>
-                 <div class="ally-preset-btn" data-w="17" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; text-align:center; cursor:pointer; box-sizing:border-box;">17W</div>
-                 <div class="ally-preset-btn" data-w="25" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; text-align:center; cursor:pointer; box-sizing:border-box;">25W</div>
-                 <div id="ally-preset-30" class="ally-preset-btn" data-w="30" style="background:#1b2838; color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:5px 0; font-size:12px; font-weight:600; text-align:center; cursor:pointer; box-sizing:border-box; display:${estado.ac_conectado ? "block" : "none"};">30W</div>
-            </div>
-
-                <div id="ally-row-tdp-boost" style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); cursor: pointer;">
-                    <span style="font-size: 12px; color: #dcdedf;">Boost Pico (SPPT / FPPT)</span>
-                    <span id="ally-tdp-boost-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;">OFF</span>
-                </div>
-            </div>
-
-            <div id="ally-row-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 10px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer;">
-                <span>CPU Boost</span>
-                <span id="ally-boost-badge" style="background: ${estado.boost ? "#66c0f4" : "#2a475e"}; color: ${estado.boost ? "#0e141b" : "#fff"}; border-radius: 4px; padding: 3px 10px; font-weight: bold; font-size: 11px;">
-                    ${estado.boost ? "ON" : "OFF"}
-                </span>
-            </div>
-
-            <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; background: rgba(0,0,0,0.18); margin-top: 4px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #b8bcbf; margin-bottom: 8px;">
-                    <span>Curva Ventiladores</span>
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <span id="ally-btn-curva-reset" title="Restaurar curva base" style="background: #1b2838; color: #dcdedf; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 7px; font-size: 12px; cursor: pointer;">↺</span>
-                        <span id="ally-row-curva-modo" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Cascada</span>
-                    </div>
-                </div>
-        `;
-
-        TEMPS.forEach((t, i) => {
-            const val = estado.curva[i] ?? 50;
-            html += `
-                <div class="ally-row-fan" data-idx="${i}" style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 12px;">
-                    <span style="width: 36px; flex-shrink: 0; color: #8b929a;">${t}°C</span>
-                    <input class="ally-pt" data-idx="${i}" type="range" min="0" max="100" step="5" value="${val}" style="flex: 1; min-width: 0; accent-color: #66c0f4; cursor: pointer;">
-                    <span id="ally-pt-val-${i}" style="width: 36px; flex-shrink: 0; text-align: right; font-weight: 600;">${val}%</span>
-                </div>
-            `;
-        });
-        html += `</div>`;
-
-
-        box.innerHTML = html;
-        const btnMando = box.querySelector("#ally-btn-mando");
-        if (btnMando) btnMando.onclick = () => pintarFocoAlly(0);
-        const rowPerfil = box.querySelector("#ally-row-perfil");
-        const perfilBadge = box.querySelector("#ally-perfil-badge");
-        const perfilMenu = box.querySelector("#ally-perfil-menu");
-        aplicarEstiloFoco(rowPerfil);
-
-        if (manualActivo) rowPerfil.tabIndex = -1;
-
-        const seleccionarPerfil = (nuevo) => {
-            estado.perfil = nuevo;
-            ultimoPerfilKernel = nuevo;
-            estado.tdp_manual = false;
-            estado.tdp_boost = false;
-            estado.tdp = (nuevo === 0) ? 13 : (nuevo === 1 ? 17 : (estado.ac_conectado ? 30 : 25));
-            const pMax = estado.ac_conectado ? "30W" : "25W";
-            const nombres = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${pMax})` };
-            perfilBadge.textContent = nombres[nuevo] + " ▾";
-            perfilMenu.style.display = "none";
-            actualizarEstadoManual(false);
-            actualizarUI();
-            enviarComando({ cmd: "perfil", val: nuevo });
-            rowPerfil.focus();
-        };
-
-
-        const toggleMenuPerfil = () => {
-            const abierto = perfilMenu.style.display === "flex";
-            perfilMenu.style.display = abierto ? "none" : "flex";
-            if (!abierto) {
-                const actualOpt = perfilMenu.querySelector(`.ally-perfil-opt[data-val="${estado.perfil ?? 1}"]`) || perfilMenu.firstElementChild;
-                actualOpt?.focus();
+        let cont = wifiEl.parentElement;
+        while (cont && cont.parentElement && cont.parentElement !== document.body) {
+            if ((cont.textContent || "").includes("ESCALA") || (cont.textContent || "").includes("SCALE") || cont.children.length >= 4) {
+                break;
             }
-        };
-
-        rowPerfil.onclick = toggleMenuPerfil;
-        rowPerfil.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggleMenuPerfil(); }
-        });
-
-        perfilMenu.querySelectorAll(".ally-perfil-opt").forEach(opt => {
-            aplicarEstiloFoco(opt);
-            const val = parseInt(opt.dataset.val);
-            opt.onclick = () => seleccionarPerfil(val);
-            opt.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); seleccionarPerfil(val); }
-                if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); perfilMenu.style.display = "none"; rowPerfil.focus(); }
-            });
-        });
-
-        const rowManual = box.querySelector("#ally-row-manual-toggle");
-        const manualBadge = box.querySelector("#ally-manual-badge");
-        const manualBox = box.querySelector("#ally-manual-box");
-        aplicarEstiloFoco(rowManual);
-
-
-        function actualizarEstadoManual(activo) {
-            estado.tdp_manual = activo;
-            manualBadge.textContent = activo ? "ON" : "OFF";
-            manualBadge.style.background = activo ? "#66c0f4" : "#2a475e";
-            manualBadge.style.color = activo ? "#0e141b" : "#fff";
-            manualBox.style.opacity = activo ? "1" : "0.4";
-            manualBox.style.pointerEvents = activo ? "auto" : "none";
-
-            const pWrap = box.querySelector("#ally-perfil-wrapper");
-            if (pWrap) {
-                pWrap.style.opacity = activo ? "0.4" : "1";
-                pWrap.style.pointerEvents = activo ? "none" : "auto";
-            }
-
-            rowPerfil.tabIndex = activo ? -1 : 0;
-            rowTdp.tabIndex = activo ? 0 : -1;
-            box.querySelectorAll(".ally-preset-btn").forEach(b => b.tabIndex = activo ? 0 : -1);
-
-
-            if (activo && perfilMenu) perfilMenu.style.display = "none";
-
-            if (activo) {
-                enviarComando({ cmd: "tdp", val: estado.tdp });
-            } else {
-                enviarComando({ cmd: "perfil", val: estado.perfil ?? 1 });
-            }
-
-            actualizarUI();
+            cont = cont.parentElement;
         }
+        if (!cont || cont === document.body) return;
 
-        rowManual.onclick = () => actualizarEstadoManual(!estado.tdp_manual);
-        rowManual.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " " || e.key === "ArrowLeft" || e.key === "ArrowRight") {
-                e.preventDefault();
-                e.stopPropagation();
-                actualizarEstadoManual(!estado.tdp_manual);
-            }
-        });
-
-        const rowTdp = box.querySelector("#ally-row-tdp");
-        const tdpS = box.querySelector("#ally-tdp-slider");
-        aplicarEstiloFoco(rowTdp);
-               const setTdp = (n) => {
-            const c = Math.max(7, Math.min(getMaxTdp(), n));
-            estado.tdp = c;
-            if (estado.tdp < 25) estado.tdp_boost = false;
-            tdpS.max = getMaxTdp();
-            tdpS.value = c;
-            box.querySelector("#ally-tdp-val").textContent = c + " W";
-            actualizarUI();
-            enviarComando({ cmd: "tdp", val: c, boost_pico: estado.tdp_boost ? 1 : 0 });
-        };
-
-
-        let tdpDebounce = null;
-        tdpS.oninput = (e) => {
-            const v = parseInt(e.target.value);
-            estado.tdp = v;
-            if (estado.tdp < 25) estado.tdp_boost = false;
-            box.querySelector("#ally-tdp-val").textContent = v + " W";
-            actualizarUI();
-            clearTimeout(tdpDebounce);
-            tdpDebounce = setTimeout(() => setTdp(v), 180);
-        };
-        tdpS.onchange = () => setTdp(parseInt(tdpS.value));
-        rowTdp.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setTdp(estado.tdp - 1); }
-            if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setTdp(estado.tdp + 1); }
-        });
-
-        box.querySelectorAll(".ally-preset-btn").forEach(btn => {
-            aplicarEstiloFoco(btn);
-            const aplicarPreset = () => {
-                if (!estado.tdp_manual) actualizarEstadoManual(true);
-                setTdp(parseInt(btn.dataset.w));
-            };
-            btn.onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); aplicarPreset(); };
-            btn.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); aplicarPreset(); }
-            });
-        });
-
-        const rowTdpBoost = box.querySelector("#ally-row-tdp-boost");
-        if (rowTdpBoost) {
-            aplicarEstiloFoco(rowTdpBoost);
-            const toggleTdpBoost = (e) => {
-                if (e) { e.preventDefault(); e.stopPropagation(); }
-                if (!estado.tdp_manual || estado.tdp < 25) return;
-                estado.tdp_boost = !estado.tdp_boost;
-                actualizarUI();
-                enviarComando({ cmd: "tdp", val: estado.tdp, boost_pico: estado.tdp_boost ? 1 : 0 });
-            };
-            rowTdpBoost.onpointerdown = toggleTdpBoost;
-            rowTdpBoost.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" || e.key === " ") toggleTdpBoost(e);
-            });
-        }
-
-        if (!manualActivo) {
-            rowTdp.tabIndex = -1;
-            if (rowTdpBoost) rowTdpBoost.tabIndex = -1;
-            box.querySelectorAll(".ally-preset-btn").forEach(b => b.tabIndex = -1);
-        }
-
-
-
-
-        let curvaTodosJuntos = false;
-        const rowCurvaModo = box.querySelector("#ally-row-curva-modo");
-        aplicarEstiloFoco(rowCurvaModo);
-        const toggleCurvaModo = (e) => {
-            if (e) { e.preventDefault(); e.stopPropagation(); }
-            curvaTodosJuntos = !curvaTodosJuntos;
-            rowCurvaModo.textContent = curvaTodosJuntos ? "Todos juntos" : "Cascada";
-            rowCurvaModo.style.background = curvaTodosJuntos ? "#66c0f4" : "#2a475e";
-            rowCurvaModo.style.color = curvaTodosJuntos ? "#0e141b" : "#fff";
-        };
-        rowCurvaModo.onpointerdown = toggleCurvaModo;
-        rowCurvaModo.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " " || e.key === "ArrowLeft" || e.key === "ArrowRight") toggleCurvaModo(e);
-        });
-
-        const btnCurvaReset = box.querySelector("#ally-btn-curva-reset");
-        if (btnCurvaReset) {
-            aplicarEstiloFoco(btnCurvaReset);
-            const resetCurvaBase = (e) => {
-                if (e) { e.preventDefault(); e.stopPropagation(); }
-                estado.curva = new Array(15, 25, 40, 55, 70, 85, 95, 100);
-                estado.curva.forEach((v, j) => {
-                    const s = box.querySelector(`.ally-pt[data-idx="${j}"]`);
-                    const l = box.querySelector(`#ally-pt-val-${j}`);
-                    if (s) s.value = v;
-                    if (l) l.textContent = v + "%";
-                });
-                enviarComando({ cmd: "curva", val: estado.curva });
-            };
-            btnCurvaReset.onpointerdown = resetCurvaBase;
-            btnCurvaReset.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" || e.key === " ") resetCurvaBase(e);
-            });
-        }
-        box.querySelectorAll(".ally-row-fan").forEach(row => {
-            aplicarEstiloFoco(row);
-            const idx = parseInt(row.dataset.idx);
-            const slider = row.querySelector(".ally-pt");
-            let fanDebounce = null;
-
-            const setFan = (nuevo) => {
-                const val = Math.max(0, Math.min(100, Math.round(nuevo / 5) * 5));
-                if (curvaTodosJuntos) {
-                    estado.curva = Array(8).fill(val);
-                } else {
-                    estado.curva[idx] = val;
-                    for (let j = idx + 1; j < 8; j++) if (estado.curva[j] < val) estado.curva[j] = val;
-                    for (let j = idx - 1; j >= 0; j--) if (estado.curva[j] > val) estado.curva[j] = val;
-                }
-                estado.curva.forEach((v, j) => {
-                    const s = box.querySelector(`.ally-pt[data-idx="${j}"]`);
-                    const l = box.querySelector(`#ally-pt-val-${j}`);
-                    if (s) s.value = v;
-                    if (l) l.textContent = v + "%";
-                });
-                clearTimeout(fanDebounce);
-                fanDebounce = setTimeout(() => enviarComando({ cmd: "curva", val: estado.curva }), 180);
-            };
-
-            slider.oninput = (e) => setFan(parseInt(e.target.value));
-            row.addEventListener("keydown", (e) => {
-                if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setFan(estado.curva[idx] - 5); }
-                if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setFan(estado.curva[idx] + 5); }
-            });
-        });
-
-        return box;
-    }
-
-    function actualizarUI() {
-        const sec = document.getElementById("ally-center-qam-section");
-        if (!sec) return;
-
-        const elModelo = sec.querySelector("#ally-tel-modelo");
-        const elAc = sec.querySelector("#ally-tel-ac");
-        const elTemp = sec.querySelector("#ally-tel-temp");
-        const elWatts = sec.querySelector("#ally-tel-watts");
-        const elCpu = sec.querySelector("#ally-tel-cpu");
-        const elGpu = sec.querySelector("#ally-tel-gpu");
-
-        if (elModelo && estado.modelo) elModelo.textContent = estado.modelo;
-        if (elAc) elAc.textContent = estado.ac_conectado ? "AC" : "BAT";
-        if (elTemp) elTemp.textContent = `${estado.temp ?? "--"} °C`;
-        if (elWatts) elWatts.textContent = `${estado.watts ?? "--"} W`;
-        if (elCpu) elCpu.textContent = `${estado.cpu_rpm ?? 0} RPM`;
-        if (elGpu) elGpu.textContent = `${estado.gpu_rpm ?? 0} RPM`;
-
-        const perfilBadge = sec.querySelector("#ally-perfil-badge");
-        if (perfilBadge) {
-            const pMax = estado.ac_conectado ? "30W" : "25W";
-            const nombres = { 0: "Ahorro (13W)", 1: "Equilibrado (17W)", 2: `Rendimiento (${pMax})` };
-            perfilBadge.textContent = (nombres[estado.perfil] ?? "Equilibrado (17W)") + " ▾";
-        }
-
-        const preset30 = sec.querySelector("#ally-preset-30");
-        if (preset30) preset30.style.display = estado.ac_conectado ? "block" : "none";
-        const tdpS = sec.querySelector("#ally-tdp-slider");
-        const tdpVal = sec.querySelector("#ally-tdp-val");
-        if (tdpS && tdpVal) {
-            const maxActual = estado.ac_conectado ? 30 : 25;
-            tdpS.max = maxActual;
-            if (estado.tdp > maxActual) estado.tdp = maxActual;
-            tdpS.value = estado.tdp;
-            tdpVal.textContent = `${estado.tdp} W`;
-        }
-        const manualOn = Boolean(estado.tdp_manual);
-        const mBadge = sec.querySelector("#ally-manual-badge");
-        const mBox = sec.querySelector("#ally-manual-box");
-        const pWrap = sec.querySelector("#ally-perfil-wrapper");
-        if (mBadge) {
-            mBadge.textContent = manualOn ? "ON" : "OFF";
-            mBadge.style.background = manualOn ? "#66c0f4" : "#2a475e";
-            mBadge.style.color = manualOn ? "#0e141b" : "#fff";
-        }
-        if (mBox) {
-            mBox.style.opacity = manualOn ? "1" : "0.4";
-            mBox.style.pointerEvents = manualOn ? "auto" : "none";
-        }
-        if (pWrap) {
-            pWrap.style.opacity = manualOn ? "0.4" : "1";
-            pWrap.style.pointerEvents = manualOn ? "none" : "auto";
-        }
-        const bBadge = sec.querySelector("#ally-boost-badge");
-        if (bBadge) {
-            bBadge.textContent = estado.boost ? "ON" : "OFF";
-            bBadge.style.background = estado.boost ? "#66c0f4" : "#2a475e";
-            bBadge.style.color = estado.boost ? "#0e141b" : "#fff";
-        }
-        const tbRow = sec.querySelector("#ally-row-tdp-boost");
-        const tbBadge = sec.querySelector("#ally-tdp-boost-badge");
-        const tbHabilitado = manualOn && estado.tdp >= 25;
-        const tbActivo = tbHabilitado && Boolean(estado.tdp_boost);
-        if (tbRow) {
-            tbRow.style.opacity = tbHabilitado ? "1" : "0.4";
-            tbRow.style.pointerEvents = tbHabilitado ? "auto" : "none";
-            tbRow.tabIndex = tbHabilitado ? 0 : -1;
-        }
-        if (tbBadge) {
-            tbBadge.textContent = tbActivo ? "ON" : "OFF";
-            tbBadge.style.background = tbActivo ? "#66c0f4" : "#2a475e";
-            tbBadge.style.color = tbActivo ? "#0e141b" : "#fff";
-        }
-        if (Array.isArray(estado.curva)) {
-            estado.curva.forEach((v, idx) => {
-                const sl = sec.querySelector(`.ally-pt[data-idx="${idx}"]`);
-                const lb = sec.querySelector(`#ally-pt-val-${idx}`);
-                if (sl && document.activeElement !== sl) sl.value = v;
-                if (lb) lb.textContent = `${v}%`;
-            });
-        }
-    }
-
-    function intentarMontarEnRendimiento() {
-
-        if (!document.body) return;
-
-        const textos = Array.from(document.querySelectorAll("div, span, button")).filter(el => el.offsetParent !== null);
-        const enPestanaRendimiento = textos.some(el =>
-            el.children.length === 0 &&
-            /^(RENDIMIENTO|PERFORMANCE|DESEMPENHO|PRESTAZIONI|LEISTUNG)$/i.test(el.textContent.trim())
-        );
-
-        const existente = document.getElementById("ally-center-qam-section");
-        if (!enPestanaRendimiento) {
-            if (existente) existente.remove();
-            return;
-        }
-        if (existente && existente.isConnected) return;
-
-        let ancla = textos.find(el =>
-            el.children.length === 0 &&
-            /^(Utilizando perfil de rendimiento personalizado|Vista avanzada|Advanced View|Visualização avançada|Vue avancée|Erweiterte Ansicht|Vista avanzata)$/i.test(el.textContent.trim())
-        );
-
-        if (!ancla) {
-            const slidersVisibles = Array.from(document.querySelectorAll('input[type="range"], [role="slider"]'))
-                .filter(el => el.offsetParent !== null && !el.closest("#ally-center-qam-section"));
-            if (slidersVisibles.length >= 1) {
-                ancla = slidersVisibles[slidersVisibles.length - 1];
-            }
-        }
-
-        if (ancla) {
-            let contenedorScroll = ancla.parentElement;
-            let ultimoScroll = null;
-            while (contenedorScroll && contenedorScroll !== document.body) {
-                const st = window.getComputedStyle(contenedorScroll);
-                if (st.overflowY === "auto" || st.overflowY === "scroll") {
-                    ultimoScroll = contenedorScroll;
-                }
-                contenedorScroll = contenedorScroll.parentElement;
-            }
-            if (ultimoScroll) {
-                const box = crearSeccionAlly();
-                ultimoScroll.appendChild(box);
-                enviarComando({ cmd: "estado" });
-            }
-        }
-
+        const destino = (cont.parentElement && cont.parentElement !== document.body) ? cont.parentElement : cont;
+        const sec = crearSeccionAlly();
+        destino.appendChild(sec);
+        enviarComando({ cmd: "estado" });
     }
 
     if (window.__allyMountTimer) clearInterval(window.__allyMountTimer);
-    window.__allyMountTimer = setInterval(() => {
-        intentarMontarEnRendimiento();
-        engancharPadReact();
-    }, 250);
+    window.__allyMountTimer = setInterval(intentarMontarEnConfigRapida, 400);
 
-
-    if (window.__allyTelTimer) clearInterval(window.__allyTelTimer);
-    window.__allyTelTimer = setInterval(() => {
-        const sec = document.getElementById("ally-center-qam-section");
-        if (sec && sec.isConnected) {
-            enviarComando({ cmd: "estado" });
-        }
-    }, 1500);
-
-
-    //SECCION DE CONTROLES PARA VENTANA CREADA
-    let allyNavIdx = -1;
-    function getAllyNavItems() {
-        const sec = document.getElementById("ally-center-qam-section");
-        if (!sec || sec.offsetParent === null) return [];
-        return Array.from(sec.querySelectorAll('[tabindex="0"]')).filter(el => el.offsetParent !== null);
-    }
-
-    function pintarFocoAlly(idx) {
-        const items = getAllyNavItems();
-        items.forEach((el, i) => {
-            if (i === idx) {
-                el.style.outline = "2px solid #66c0f4";
-                el.style.outlineOffset = "2px";
-                el.style.background = "rgba(102, 192, 244, 0.22)";
-                el.scrollIntoView({ block: "nearest", behavior: "smooth" });
-                el.focus({ preventScroll: true });
-            } else {
-                el.style.outline = "none";
-                el.style.background = el.classList.contains("ally-preset-btn") ? "#1b2838" : "transparent";
-            }
-        });
-        allyNavIdx = idx;
-    }
-
-    window.__allyControllerBtn = (btn) => {
-        const sec = document.getElementById("ally-center-qam-section");
-        if (!sec || sec.offsetParent === null) {
-            if (allyNavIdx !== -1) pintarFocoAlly(-1);
-            return;
-        }
-        const items = getAllyNavItems();
-        if (!items.length) return;
-
-        // Si aún estamos arriba en Steam y el foco blanco (.gpfocus) está en "Vista avanzada" + pulsamos Abajo
-        if (allyNavIdx === -1) {
-            const scroll = sec.parentElement;
-            const enFondo = scroll ? (scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 60) : false;
-            if (btn === "Y" || (btn === "DOWN" && enFondo)) {
-                pintarFocoAlly(0);
-            }
-            return;
-        }
-
-
-        const actual = items[allyNavIdx];
-        if (!actual) { pintarFocoAlly(-1); return; }
-
-        if (btn === "DOWN") {
-            pintarFocoAlly(Math.min(items.length - 1, allyNavIdx + 1));
-        } else if (btn === "UP") {
-            if (allyNavIdx <= 0) {
-                pintarFocoAlly(-1);
-                document.querySelector(".gpfocus")?.focus();
-            } else {
-                pintarFocoAlly(allyNavIdx - 1);
-            }
-        } else if (btn === "LEFT" || btn === "RIGHT") {
-            const key = btn === "LEFT" ? "ArrowLeft" : "ArrowRight";
-            actual.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
-        } else if (btn === "A") {
-            actual.click();
-            setTimeout(() => {
-                const nuevos = getAllyNavItems();
-                if (allyNavIdx >= nuevos.length) pintarFocoAlly(nuevos.length - 1);
-            }, 50);
-        } else if (btn === "B") {
-            const menu = document.getElementById("ally-perfil-menu");
-            if (menu && menu.style.display === "flex") {
-                menu.style.display = "none";
-                pintarFocoAlly(0);
-            } else {
-                pintarFocoAlly(-1);
-                document.querySelector(".gpfocus")?.focus();
-            }
-        }
-    };
-
-    window.addEventListener("keydown", (e) => {
-        const sec = document.getElementById("ally-center-qam-section");
-        if (!sec || sec.offsetParent === null) return;
-
-        if (allyNavIdx === -1) {
-            if (e.key === "ArrowDown") {
-                const gp = document.querySelector('[class*="gpfocus"]');
-                if (gp && /Vista avanzada|Advanced View/i.test(gp.textContent || "")) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    pintarFocoAlly(0);
-                }
-            }
-            return;
-        }
-
-        const items = getAllyNavItems();
-        const actual = items[allyNavIdx];
-        if (!actual) { pintarFocoAlly(-1); return; }
-
-        if (e.key === "ArrowDown") {
-            e.preventDefault();
-            e.stopPropagation();
-            pintarFocoAlly(Math.min(items.length - 1, allyNavIdx + 1));
-        } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            e.stopPropagation();
-            if (allyNavIdx <= 0) {
-                pintarFocoAlly(-1);
-                document.querySelector('[class*="gpfocus"]')?.focus();
-            } else {
-                pintarFocoAlly(allyNavIdx - 1);
-            }
-        } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-            e.preventDefault();
-            e.stopPropagation();
-            actual.dispatchEvent(new KeyboardEvent("keydown", { key: e.key, bubbles: true }));
-        } else if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            actual.click();
-        } else if (e.key === "Escape" || e.key === "Backspace") {
-            e.preventDefault();
-            e.stopPropagation();
-            pintarFocoAlly(-1);
-            document.querySelector('[class*="gpfocus"]')?.focus();
-        }
-    }, true);
-
-
-    window.addEventListener("vgp_onbuttondown", (e) => {
-        const sec = document.getElementById("ally-center-qam-section");
-        if (!sec || sec.offsetParent === null) return;
-        const b = e.detail?.button;
-        const mapVgp = { 1: "UP", 32: "UP", 4: "DOWN", 35: "DOWN", 3: "LEFT", 34: "LEFT", 2: "RIGHT", 33: "RIGHT", 5: "A", 6: "B" };
-        const accion = mapVgp[b];
-        if (!accion) return;
-
-        if (allyNavIdx === -1) {
-            if (accion === "DOWN") {
-                const gp = document.querySelector('[class*="gpfocus"]');
-                if (gp && /Vista avanzada|Advanced View/i.test(gp.textContent || "")) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                    pintarFocoAlly(0);
-                }
-            }
-            return;
-        }
-
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        window.__allyControllerBtn(accion);
-    }, true);
-
-
-    function engancharPadReact() {
-        const sec = document.getElementById("ally-center-qam-section");
-        if (!sec || sec.offsetParent === null) return;
-        const panel = sec.parentElement;
-        if (!panel) return;
-
-        panel.querySelectorAll("button, [tabindex], [class*='Focusable']").forEach(el => {
-            if (sec.contains(el) || el.__allyHooked) return;
-            const propKey = Object.keys(el).find(k => k.startsWith("__reactProps$"));
-            if (!propKey || !el[propKey]) return;
-            const props = el[propKey];
-
-            if (typeof props.onGamepadDirection === "function") {
-                const origDir = props.onGamepadDirection;
-                props.onGamepadDirection = function(e) {
-                    const dir = e?.detail?.direction;
-                    // Si estamos dentro de nuestra tarjeta, controlamos nosotros
-                    if (allyNavIdx >= 0) {
-                        const mapD = { 9: "UP", 10: "DOWN", 11: "LEFT", 12: "RIGHT" };
-                        if (mapD[dir]) {
-                            window.__allyControllerBtn(mapD[dir]);
-                            return true;
-                        }
-                    }
-                    // Si estamos en "Vista avanzada" (último control nativo) y pulsamos Abajo (10)
-                    if (allyNavIdx === -1 && dir === 10 && /Vista avanzada|Advanced View/i.test(el.textContent || "")) {
-                        pintarFocoAlly(0);
-                        return true;
-                    }
-                    return origDir.apply(this, arguments);
-                };
-            }
-
-            if (typeof props.onOKButton === "function") {
-                const origOk = props.onOKButton;
-                props.onOKButton = function(e) {
-                    if (allyNavIdx >= 0) {
-                        window.__allyControllerBtn("A");
-                        return true;
-                    }
-                    return origOk.apply(this, arguments);
-                };
-            }
-
-            if (typeof props.onCancelButton === "function") {
-                const origCancel = props.onCancelButton;
-                props.onCancelButton = function(e) {
-                    if (allyNavIdx >= 0) {
-                        window.__allyControllerBtn("B");
-                        return true;
-                    }
-                    return origCancel.apply(this, arguments);
-                };
-            }
-
-            el.__allyHooked = true;
-        });
-    }
-
-
-    window.__allyObs = new MutationObserver(() => intentarMontarEnRendimiento());
+    window.__allyObs = new MutationObserver(intentarMontarEnConfigRapida);
     window.__allyObs.observe(document.documentElement, { childList: true, subtree: true });
-    intentarMontarEnRendimiento();
-
+    intentarMontarEnConfigRapida();
 })();
 """
-
-JS_SHARED_INPUT = r"""
-(() => {
-    if (window.__allySharedInputHooked) return;
-    window.__allySharedInputHooked = true;
-    const mapBtn = {
-        1: "UP", 32: "UP",
-        4: "DOWN", 35: "DOWN",
-        3: "LEFT", 34: "LEFT",
-        2: "RIGHT", 33: "RIGHT",
-        5: "A",
-        6: "B"
-    };
-    let lastTs = 0;
-    if (window.SteamClient && SteamClient.Input && SteamClient.Input.RegisterForControllerInputMessages) {
-        SteamClient.Input.RegisterForControllerInputMessages((_ctrlIdx, btnCode, pressed) => {
-            if (!pressed) return;
-            const accion = mapBtn[btnCode];
-            if (!accion) return;
-            const now = Date.now();
-            if (now - lastTs < 120) return;
-            lastTs = now;
-            if (window.allySharedSend) window.allySharedSend(accion);
-        });
-    }
-})();
-"""
-
-
-
-qam_ws_activo = None
-async def manejar_shared(ws_url):
-    try:
-        async with websockets.connect(ws_url) as ws:
-            await ws.send(json.dumps({"id": 1, "method": "Runtime.enable"}))
-            await ws.send(json.dumps({"id": 2, "method": "Runtime.addBinding", "params": {"name": "allySharedSend"}}))
-            await ws.send(json.dumps({"id": 3, "method": "Runtime.evaluate", "params": {"expression": JS_SHARED_INPUT}}))
-            async for raw in ws:
-                msg = json.loads(raw)
-                if msg.get("method") == "Runtime.bindingCalled" and msg.get("params", {}).get("name") == "allySharedSend":
-                    accion = msg["params"]["payload"]
-                    if qam_ws_activo:
-                        try:
-                            await qam_ws_activo.send(json.dumps({
-                                "id": 50,
-                                "method": "Runtime.evaluate",
-                                "params": {"expression": f"window.__allyControllerBtn && window.__allyControllerBtn({json.dumps(accion)})"}
-                            }))
-                        except Exception:
-                            pass
-    except Exception:
-        pass
 
 
 async def manejar_target(ws_url):
-    global qam_ws_activo
     try:
         async with websockets.connect(ws_url) as ws:
-            qam_ws_activo = ws
             await ws.send(json.dumps({"id": 1, "method": "Runtime.enable"}))
             await ws.send(json.dumps({"id": 2, "method": "Runtime.addBinding", "params": {"name": "allyBridgeSend"}}))
             await ws.send(json.dumps({"id": 3, "method": "Runtime.evaluate", "params": {"expression": JS_INJECT}}))
@@ -892,54 +759,71 @@ async def manejar_target(ws_url):
                 if msg.get("method") == "Runtime.bindingCalled" and msg.get("params", {}).get("name") == "allyBridgeSend":
                     payload = json.loads(msg["params"]["payload"])
                     cmd = payload.get("cmd")
+
                     if cmd == "estado":
-                        est = leer_estado_str()
-                        await ws.send(json.dumps({
-                            "id": 10,
-                            "method": "Runtime.evaluate",
-                            "params": {"expression": f"window.__allyRecibirEstado({json.dumps(est)})"}
-                        }))
+                        st = leer_estado_str()
+                        if st:
+                            await ws.send(json.dumps({
+                                "id": 10,
+                                "method": "Runtime.evaluate",
+                                "params": {"expression": f"window.__allyActualizarEstado && window.__allyActualizarEstado({json.dumps(st)})"}
+                            }))
                     elif cmd == "perfil":
-                        ejecutar_ally(["perfil", str(int(payload["val"]))])
+                        ejecutar_ally(list(("perfil", str(payload.get("val", 1)))))
                     elif cmd == "tdp":
-                        b_pico = "1" if payload.get("boost_pico") else "0"
-                        ejecutar_ally(["tdp", str(int(payload.get("val", 17))), b_pico])
-                    elif cmd == "boost":
-                        ejecutar_ally(["boost", "1" if payload["val"] else "0"])
-                    elif cmd == "curva":
-                        pts_csv = ",".join(str(int(x)) for x in payload["val"])
-                        ejecutar_ally(["guardar_curva", pts_csv])
+                        ejecutar_ally(list(("tdp", str(payload.get("val", 17)), str(payload.get("boost_pico", 0)))))
+                    elif cmd == "cpu_boost":
+                        ejecutar_ally(list(("boost", str(payload.get("val", 0)))))
+                    elif cmd == "bateria":
+                        ejecutar_ally(list(("bateria", str(payload.get("val", 1)))))
+                    elif cmd == "guardar_curva":
+                        pts_csv = ",".join(str(int(x)) for x in payload.get("val", ()))
+                        ejecutar_ally(list(("guardar_curva", pts_csv)))
+                    elif cmd == "fan_auto":
+                        ejecutar_ally(list(("auto",)))
+                    elif cmd == "fan_ambos":
+                        ejecutar_ally(list(("ambos", str(int(payload.get("val", 50))), "guardar")))
+                    elif cmd == "fan_sep":
+                        ejecutar_ally(list(("cpu_fan", str(int(payload.get("cpu", 50))))))
+                        ejecutar_ally(list(("gpu_fan", str(int(payload.get("gpu", 50))))))
+                    elif cmd == "rgb":
+                        r, g, b = tuple(payload.get("rgb", (0, 210, 255)))
+                        ejecutar_ally(list((
+                            "rgb",
+                            str(payload.get("modo", "fijo")),
+                            str(int(r)),
+                            str(int(g)),
+                            str(int(b)),
+                            str(int(payload.get("brillo", 80)))
+                        )))
     except Exception:
         pass
-    finally:
-        if qam_ws_activo:
-            qam_ws_activo = None
 
 
 async def bucle_principal():
-    tareas = {}
+    tareas_activas = {}
     while True:
         try:
-            with urllib.request.urlopen("http://localhost:8080/json", timeout=2) as resp:
-                targets = json.loads(resp.read().decode())
+            targets = await asyncio.to_thread(obtener_targets)
+            urls_actuales = set()
             for t in targets:
                 title = t.get("title", "")
-                tid = t.get("id")
-                ws_url = t.get("webSocketDebuggerUrl")
-                if not tid or not ws_url:
-                    continue
-                if t.get("type") == "page" and title.startswith("QuickAccess"):
-                    if tid not in tareas or tareas[tid].done():
-                        tareas[tid] = asyncio.create_task(manejar_target(ws_url))
-                elif title == "SharedJSContext":
-                    if tid not in tareas or tareas[tid].done():
-                        tareas[tid] = asyncio.create_task(manejar_shared(ws_url))
+                url = t.get("webSocketDebuggerUrl", "")
+                if url and "QuickAccess" in title:
+                    urls_actuales.add(url)
+                    if url not in tareas_activas:
+                        tareas_activas.update({url: asyncio.create_task(manejar_target(url))})
+
+            for url in list(tareas_activas.keys()):
+                if url not in urls_actuales or tareas_activas.get(url).done():
+                    tareas_activas.pop(url, None)
         except Exception:
             pass
-        await asyncio.sleep(2)
+        await asyncio.sleep(0.35)
 
 
 if __name__ == "__main__":
-    asyncio.run(bucle_principal())
-
-
+    try:
+        asyncio.run(bucle_principal())
+    except KeyboardInterrupt:
+        pass

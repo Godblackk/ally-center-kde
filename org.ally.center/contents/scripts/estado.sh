@@ -126,9 +126,39 @@ if [ -r /etc/ally-center.json ]; then
     [ -n "$inner" ] && extra_json=", $inner"
 fi
 
+# 9. Telemetría en vivo de batería (consumo total W y tiempo restante)
+bat_pct=100
+bat_watts="0.0"
+bat_tiempo="AC"
+if [ -d /sys/class/power_supply/BAT0 ]; then
+    [ -r /sys/class/power_supply/BAT0/capacity ] && read -r bat_pct < /sys/class/power_supply/BAT0/capacity
+    b_stat=""
+    [ -r /sys/class/power_supply/BAT0/status ] && read -r b_stat < /sys/class/power_supply/BAT0/status
+    e_now=0
+    p_now=0
+    [ -r /sys/class/power_supply/BAT0/energy_now ] && read -r e_now < /sys/class/power_supply/BAT0/energy_now
+    [ -r /sys/class/power_supply/BAT0/power_now ] && read -r p_now < /sys/class/power_supply/BAT0/power_now
+
+    if [ "$p_now" -gt 100000 ] 2>/dev/null; then
+        bat_watts=$(awk -v p="$p_now" 'BEGIN { printf "%.1f", p / 1000000.0 }')
+        if [ "$b_stat" = "Discharging" ] && [ "$e_now" -gt 0 ] 2>/dev/null; then
+            mins=$(( (e_now * 60) / p_now ))
+            hrs=$(( mins / 60 ))
+            rem=$(( mins % 60 ))
+            bat_tiempo="${hrs}h ${rem}m"
+        elif [ "$b_stat" = "Charging" ]; then
+            bat_tiempo="Cargando"
+        fi
+    else
+        [ "$b_stat" = "Charging" ] && bat_tiempo="Cargando"
+    fi
+fi
+
+
+
 # Salida JSON completa (hardware en vivo + configuración guardada)
-printf '{"modelo": "%s", "cpu_rpm": %d, "gpu_rpm": %d, "temp": %d, "watts": "%s", "ac_conectado": %s%s%s%s%s%s}\n' \
-    "$modelo" "$cpu_rpm" "$gpu_rpm" "$temp" "$watts" "$ac_conectado" \
+printf '{"modelo": "%s", "cpu_rpm": %d, "gpu_rpm": %d, "temp": %d, "watts": "%s", "ac_conectado": %s, "bat_pct": %d, "bat_watts": "%s", "bat_tiempo": "%s"%s%s%s%s%s}\n' \
+    "$modelo" "$cpu_rpm" "$gpu_rpm" "$temp" "$watts" "$ac_conectado" "$bat_pct" "$bat_watts" "$bat_tiempo" \
     "$extra_json" "$perfil_json" "$tdp_json" "$boost_json" "$bat_json"
 
 

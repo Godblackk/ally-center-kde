@@ -167,6 +167,10 @@ PlasmoidItem {
                             if (info.modo_fan !== undefined) {
                                 root.modoActual = (info.modo_fan === "auto") ? 0 : (info.modo_fan === "manual" ? 1 : 2)
                             }
+                            if (info.vincular_fans !== undefined) root.vincularFans = info.vincular_fans
+                            if (info.fan_pct !== undefined) root.velAmbos = info.fan_pct
+                            if (info.cpu_pct !== undefined) root.velCpu = info.cpu_pct
+                            if (info.gpu_pct !== undefined) root.velGpu = info.gpu_pct
                             if (info.rgb_modo !== undefined) root.rgbModo = info.rgb_modo
                             if (info.rgb && info.rgb.length === 3) {
                                     root.rgbR = info.rgb[0]; root.rgbG = info.rgb[1]; root.rgbB = info.rgb[2]
