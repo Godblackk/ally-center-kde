@@ -24,7 +24,8 @@
   - Control de CPU Boost (`/sys/devices/system/cpu/cpufreq/boost`).
 - **Sensores (`hwmon`)**: Lectura de temperatura APU (`amdgpu` / `k10temp`), consumo energético, RPM de ventiladores y curvas PWM personalizadas (`asus_custom_fan_curve`).
 - **Iluminación RGB**: Gestión de anillos LED mediante `ally_center.py` (modos estáticos y dinámicos).
-- **Servicio de arranque**: Persistencia y restauración de ajustes a través de `/etc/ally-center.json` y `/etc/systemd/system/ally-center.service`.
+- **Persistencia de arranque y suspensión (`systemd`):** `/etc/ally-center.json` restaurado al iniciar por `/etc/systemd/system/ally-center.service` y al despertar de suspensión/hibernación mediante el hook `/usr/lib/systemd/system-sleep/ally-center` (`ally_center.py boot`).
+
 
 ## 3. Comandos y scripts internos
 

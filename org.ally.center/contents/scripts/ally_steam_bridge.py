@@ -145,12 +145,6 @@ JS_INJECT = """
                 </button>
             </div>
 
-
-
-
-
-
-
             <div id="ally-pane-tdp">
                 <div id="ally-perfil-wrapper" style="position: relative; margin-bottom: 10px;">
                     <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer;">

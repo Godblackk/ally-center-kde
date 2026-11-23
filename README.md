@@ -38,7 +38,7 @@ El proyecto utiliza una arquitectura desacoplada donde **KDE Plasma 6** y el **M
 
 - **Widget de Plasma 6:** Instala `org.ally.center` mediante `kpackagetool6`.
 - **Permisos sin contraseña:** Crea `/etc/sudoers.d/ally-center` para ajustar hardware sin pedir `sudo`.
-- **Persistencia:** Configura `ally-center.service` y el puente de Steam (`ally-steam-bridge.service`).
+- **Persistencia:** Configura `ally-center.service`, el hook de suspensión (`systemd-sleep`) y el puente de Steam (`ally-steam-bridge.service`).
 
 ## Actualización y desinstalación
 
