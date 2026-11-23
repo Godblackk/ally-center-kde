@@ -42,6 +42,18 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable ally-center.service
 
+
+# Restaurar TDP, curva y RGB automaticamente al despertar de suspension/hibernacion
+sudo mkdir -p /usr/lib/systemd/system-sleep
+cat << EOF | sudo tee /usr/lib/systemd/system-sleep/ally-center > /dev/null
+#!/bin/sh
+if [ "\$1" = "post" ]; then
+    /usr/bin/python3 $HOME/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py boot &
+fi
+EOF
+sudo chmod +x /usr/lib/systemd/system-sleep/ally-center
+
+
 # Instalar dependencia de websockets para el puente de Modo Juego
 if ! python3 -c "import websockets" 2>/dev/null; then
     if command -v pacman &>/dev/null; then
@@ -77,6 +89,7 @@ EOF
 
 systemctl --user daemon-reload
 systemctl --user enable --now ally-steam-bridge.service
+systemctl --user restart ally-steam-bridge.service
 
 echo "==> Reiniciando Plasma..."
 systemctl --user restart plasma-plasmashell 2>/dev/null || true

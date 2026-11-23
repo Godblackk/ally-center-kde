@@ -22,6 +22,7 @@ rm -f "$HOME/.local/share/Steam/.cef-enable-remote-debugging" \
 # 3. Detener y eliminar el servicio de restauración al arranque (sistema)
 sudo systemctl disable --now ally-center.service 2>/dev/null || true
 sudo rm -f /etc/systemd/system/ally-center.service
+sudo rm -f /usr/lib/systemd/system-sleep/ally-center
 sudo systemctl daemon-reload
 
 # 4. Eliminar permisos sudoers e icono
