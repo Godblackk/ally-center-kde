@@ -1,77 +1,52 @@
-# Center ROG Ally (KDE Plasma 6)
+# Center ROG Ally (KDE Plasma 6 + Steam Modo Juego)
 
-Centro de control nativo de energia, TDP, CPU Boost, limite de carga de bateria y curvas personalizadas de ventiladores para **ASUS ROG Ally** y **ROG Ally X** en Linux (CachyOS / Arch Linux / KDE Plasma 6).
+> **⚠️ EXCLUSIVO PARA ASUS ROG ALLY / ROG ALLY X:** Diseñado **únicamente** para consolas **ASUS ROG Ally (RC71L)** y **ROG Ally X (RC72LA)** en Linux mediante controladores del kernel específicos de ASUS (`asus-armoury`, `asus_custom_fan_curve`, HID/LED). No es compatible con Steam Deck, Lenovo Legion Go u otros dispositivos.
 
-## Caracteristicas incluidas
+Centro de control nativo para **ASUS ROG Ally** y **ROG Ally X** en Linux (**KDE Plasma 6** y **Steam Modo Juego / Gamescope**).
 
-- **Deteccion automatica de hardware:** Identifica automaticamente el modelo exacto de consola (`ROG Ally` o `ROG Ally X`) y el estado de conexion a corriente (`AC` vs `Bateria`).
-- **Telemetria en tiempo real:** Lectura directa desde `hwmon` de RPM de CPU y GPU, temperatura de la APU (`°C`) y consumo energetico en tiempo real (`W`).
-- **Perfiles oficiales de ASUS y TDP dinamico (AC / Bateria):**
-  - Perfiles **Ahorro (13W)** (`13/17/20W`), **Equilibrado (17W)** (`17/20/25W`) y **Rendimiento** (`25/30/35W` en bateria y `30/35/45W` con cargador conectado).
-  - **Limite TDP Manual (`7W`–`25W` en bateria / `7W`–`30W` con cargador):** Ajusta el tope maximo automaticamente al conectar o desconectar el cargador, parte desde los Watts del perfil activo y deshabilita el selector de perfiles mientras esta activo.
-  - Sincronizacion en tiempo real de **CPU Boost** y **Cuidado de Bateria (limite al 80%)** con el estado real del kernel.
-- **Control avanzado de ventiladores:**
-  - Modos **Automatico (BIOS)**, **Manual (Perfiles / Individual / Vinculado)** y **Curva Personalizada de 8 puntos**.
-  - **Grafico interactivo con interpolacion continua:** Calcula y aplica el porcentaje exacto entre nodos grado a grado con un indicador visual dinamico de la temperatura actual.
-- **Integración nativa en Steam Modo Juego (sin Decky Loader):** 
-  - Inyecta directamente la tarjeta de control (con detección automática de **ROG Ally** o **ROG Ally X** e indicador **AC / BAT**) exclusivamente dentro de la pestaña de **Rendimiento (`...` → ⚡)** del menú rápido (`QuickAccess`) de Steam GamepadUI mediante CEF (`ally_steam_bridge.py`). 
-  - Incluye **telemetría en tiempo real** (temperatura APU, consumo en Watts y RPM de ventiladores CPU/GPU)
-  - **Menú desplegable de Perfiles de Energía** (`Ahorro`, `Equilibrado`, `Rendimiento`) sincronizado con el selector de Steam
-  - **Toggle de Límite TDP Manual** con bloqueo mutuo, deslizador **7W – 30W** (tope dinámico 25W en batería)
-  - **Presets rápidos (`13W`, `17W`, `25W`, `30W`)**, **CPU Boost** y **Curva de Ventiladores de 8 puntos**, con navegación completa mediante mando (cruceta D-Pad, salto automático de controles deshabilitados y botón A).
+## Características principales
 
-- **Iconos dinamicos en la barra de tareas:** Cambia automaticamente segun el perfil activo (`leaf.svg` para Ahorro, `balance.svg` para Equilibrado, `rocket.svg` para Rendimiento y `manual.svg` para TDP Manual).
-- **Persistencia en el arranque y Modo Juego (`systemd`):** Guarda el estado en `/etc/ally-center.json`  y restaura automaticamente TDP, perfil, CPU Boost, limite de bateria y curva de hardware al encender la consola mediante `ally-center.service` (compatible con inicio directo en Gamescope / SteamOS).
+- **Detección automática de hardware:** Identifica el modelo exacto y el estado de alimentación (`AC` / `BAT` con porcentaje).
+- **Telemetría en tiempo real:** Monitorea RPM de ventiladores, temperatura de la APU (°C), consumo del chip (W) y telemetría de batería (`BAT0`: Watts, tiempo restante y potencia de carga).
+- **Perfiles de ASUS y TDP dinámico:** Incluye perfiles *Ahorro (13W)*, *Equilibrado (17W)* y *Rendimiento*, además de límite TDP Manual (`7W–30W`) sincronizado con Boost Pico y cuidado de batería (80%).
+- **Control de ventiladores:** Modos *Automático*, *Manual* (Silencioso, Equilibrado, Turbo) y *Curva Personalizada* de 8 puntos.
+- **Iluminación RGB:** Modos dinámicos (Color Fijo, Temperatura APU, Nivel de Batería, Hora del Día) con control de brillo.
+- **Integración con Steam Modo Juego:** Tarjeta táctil en las configuraciones rápidas (`... → ⚙️`) vía CEF (`ally_steam_bridge.py`), dividida en sub-pestañas (*TDP* | *Ventiladores* | *RGB*).
+- **Iconos dinámicos y persistencia:** Iconos de barra de tareas según el perfil activo y servicio `systemd` para guardar ajustes en `/etc/ally-center.json`.
 
+## Arquitectura del sistema
 
-## Instalación rápida (después de formatear o en un sistema limpio)
+El proyecto utiliza una arquitectura desacoplada donde **KDE Plasma 6** y el **Modo Juego de Steam** comparten un backend y estado persistente en tiempo real:
 
-1. Abre una terminal en el escritorio KDE Plasma y ejecuta:
+1. **Interfaz KDE Plasma 6 (`contents/ui/main.qml`):** Plasmoide nativo QML/Kirigami para el panel de escritorio con control de energía, ventiladores y RGB.
+2. **Puente Steam Modo Juego (`contents/scripts/ally_steam_bridge.py`):** Servicio de usuario (`systemd --user`) que se conecta vía WebSocket al depurador CEF de Steam (`localhost:8080`) e inyecta una tarjeta táctil compacta (`TDP` | `Ventiladores` | `RGB`) en las **Configuraciones rápidas (`... → ⚙️`)**, sin requerir Decky Loader.
+3. **Backend de Hardware (`ally_center.py` y `estado.sh`):** Lee y aplica cambios de hardware (sensores en `/sys/class/hwmon`, `asus-armoury`, `cpufreq`, `BAT0`) mediante bloqueo exclusivo (`flock`) persistiendo en `/etc/ally-center.json`.
+4. **Sincronización (`/etc/ally-center.json` + `ally-center.service`):** Logra sincronización bidireccional y restauración automática al arrancar.
+
+## Instalación rápida
+
+1. Clona el repositorio y ejecuta el instalador en KDE Plasma:
    ```bash
-   git clone https://github.com/Godblackk/ally-center-kde.git
+   git clone https://github.com
    cd ally-center-kde
    ./install.sh
    ```
-2. Introduce tu contraseña de usuario (`sudo`) cuando el instalador la solicite para configurar los permisos de hardware y el servicio de arranque.
-3. Cuando termine y se reinicie la barra de tareas:
-   * Haz **clic derecho** en la barra de tareas → **Añadir o gestionar widgets**.
-   * Busca **Center ROG Ally** y haz clic en él para anclarlo en tu panel.
-
----
+2. Introduce tu contraseña (`sudo`) para configurar permisos y servicios.
+3. Haz **clic derecho** en la barra de tareas de KDE → **Añadir o gestionar widgets** → selecciona **Center ROG Ally**.
 
 ## ¿Qué configura automáticamente `./install.sh`?
 
-* **Registro del widget:** Instala `org.ally.center` en KDE Plasma 6 mediante `kpackagetool6`.
-* **Permisos sin contraseña (`sudoers`):** Crea `/etc/sudoers.d/ally-center` para que el widget pueda ajustar TDP, CPU Boost, límite de batería y ventiladores en tiempo real sin pedir clave.
-* **Persistencia al arrancar (`systemd`):** Instala y activa `ally-center.service`, que lee `/etc/ally-center.json` al encender la consola y aplica tu último TDP, perfil, Boost, límite de carga al 80% y curva de ventiladores (compatible con inicio directo en **Modo Juego / Gamescope**).
-* **Puente para Steam Modo Juego (`systemd --user`):** Instala la dependencia `python-websockets`, crea el archivo oficial `.cef-enable-remote-debugging` en Steam (nativo y Flatpak) y activa el servicio de usuario `ally-steam-bridge.service` para que el control en el menú rápido funcione automáticamente al entrar en Modo Juego.
+- **Widget de Plasma 6:** Instala `org.ally.center` mediante `kpackagetool6`.
+- **Permisos sin contraseña:** Crea `/etc/sudoers.d/ally-center` para ajustar hardware sin pedir `sudo`.
+- **Persistencia:** Configura `ally-center.service` y el puente de Steam (`ally-steam-bridge.service`).
 
+## Actualización y desinstalación
 
----
+- **Actualizar:** `cd ~/ally-center-kde && git pull && ./install.sh`
+- **Desinstalar:** `cd ~/ally-center-kde && ./uninstall.sh`
 
-## Actualizar el widget en el futuro
+## Compatibilidad (ASUS ROG Ally / ROG Ally X)
 
-Si realizas mejoras o descargas una actualización desde GitHub:
-```bash
-cd ~/ally-center-kde
-git pull
-./install.sh
-```
-
-## Desinstalación
-
-Si deseas eliminar por completo el widget, el servicio de arranque, los iconos y las reglas de permisos del sistema:
-
-```bash
-cd ~/ally-center-kde
-./uninstall.sh
-```
-
-## Compatibilidad con otras distribuciones
-
-Este widget esta disenado nativamente para **KDE Plasma 6** y funciona en cualquier distribucion Linux con kernel moderno (drivers `asus-armoury` y `asus_custom_fan_curve`):
-
-* **CachyOS / Arch Linux / EndeavourOS (KDE Plasma 6):** Soporte completo y nativo (`100%` recomendado).
-* **Bazzite (Edicion KDE Plasma):** Compatible. *Nota:* Bazzite incluye **Handheld Daemon (`hhd`)**; evita ajustar TDP o ventiladores desde `hhd` al mismo tiempo para que no sobrescriban los valores del widget.
-- **SteamOS / Gamescope (Modo Escritorio y Modo Juego):** Compatible con versiones basadas en KDE Plasma 6. Al entrar en **Modo Juego**, abre el menú rápido (`...` → **Rendimiento ⚡**) para acceder directamente a la tarjeta **Center ROG Ally X** al final del panel sin necesidad de instalar Decky Loader. *Nota:* Tras una actualización mayor de SteamOS, vuelve a ejecutar `./install.sh` si el sistema restablece los archivos en `/etc/sudoers.d/` o `/etc/systemd/system/`.
-* **Ediciones con GNOME (ej. Bazzite GNOME):** No compatible, ya que es un plasmoide exclusivo de KDE Plasma 6.
+- **CachyOS / Arch Linux / EndeavourOS (KDE Plasma 6):** Soporte nativo completo.
+- **Bazzite / SteamOS (KDE Plasma 6):** Compatible (evita solapar con *Handheld Daemon* en Bazzite; reejecuta `./install.sh` tras grandes actualizaciones de SteamOS).
+- **GNOME:** No compatible.
