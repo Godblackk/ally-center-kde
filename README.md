@@ -27,7 +27,7 @@ El proyecto utiliza una arquitectura desacoplada donde **KDE Plasma 6** y el **M
 
 1. Clona el repositorio y ejecuta el instalador en KDE Plasma:
    ```bash
-   git clone https://github.com
+   git clone https://github.com/Godblackk/ally-center-kde.git
    cd ally-center-kde
    ./install.sh
    ```
