@@ -17,14 +17,14 @@
 ## 2. Rutas del kernel de Linux utilizadas (`estado.sh` / `ally_center.py`)
 
 - **Hardware y energía**: Identificación de modelo en `/sys/devices/virtual/dmi/id/product_name` y estado AC/batería en `/sys/class/power_supply/*/type`.
-- **Telemetría de batería (`BAT0`)**: Monitoreo de capacidad, estado (`Discharging`, `Charging`, etc.), energía restante, potencia en Watts, tiempo estimado y umbral de carga (`/sys/class/power_supply/BAT0/`).
+- **Telemetría de batería (BAT0/BATT)**: Monitoreo de capacidad, estado (`Discharging`, `Charging`, etc.), energía restante, potencia en Watts, tiempo estimado y umbral de carga (`/sys/class/power_supply/BAT0/ o /BATT/`).
 - **Rendimiento y TDP (`asus-armoury`)**: 
   - Perfiles ACPI (`/sys/firmware/acpi/platform_profile`).
   - Límites de potencia PL1, PL2 y PL3 para modos *Ahorro*, *Equilibrado*, *Rendimiento* y *Manual* (`/sys/class/firmware-attributes/asus-armoury/attributes/`).
   - Control de CPU Boost (`/sys/devices/system/cpu/cpufreq/boost`).
 - **Sensores (`hwmon`)**: Lectura de temperatura APU (`amdgpu` / `k10temp`), consumo energético, RPM de ventiladores y curvas PWM personalizadas (`asus_custom_fan_curve`).
 - **Iluminación RGB**: Gestión de anillos LED mediante `ally_center.py` (modos estáticos y dinámicos).
-- **Persistencia de arranque y suspensión (`systemd`):** `/etc/ally-center.json` restaurado al iniciar por `/etc/systemd/system/ally-center.service` y al despertar de suspensión/hibernación mediante el hook `/usr/lib/systemd/system-sleep/ally-center` (`ally_center.py boot`).
+- **Persistencia de arranque y suspensión (`systemd`):** `/etc/ally-center.json` restaurado al iniciar por `/etc/systemd/system/ally-center.service` y al despertar de suspensión/hibernación mediante el hook `/etc/systemd/system-sleep/ally-center` (`ally_center.py boot`).
 
 
 ## 3. Comandos y scripts internos
@@ -46,7 +46,7 @@
 | `auto` | *(ninguno)* | Devuelve el control térmico de los ventiladores a la BIOS (`pwm1_enable = 2`). |
 | `ambos` / `cpu_fan` / `gpu_fan` | `0..100` | Ajustan la velocidad de los ventiladores de forma conjunta o individual, actualizando los modos en la configuración. |
 | `guardar_curva` | `v1,v2,...,v8` | Almacena y aplica una curva de ventilación personalizada de 8 puntos en el firmware. |
-| `rgb` / `rgb_live` / `rgb_tick` | `modo r g b brillo` | Gestiona los efectos e iluminación LED (estáticos o dinámicos basados en temperatura, batería u hora). |
+| `rgb` / `rgb_live` / `rgb_tick` | `modo r g b brillo velocidad` | Gestiona los efectos e iluminación LED (estáticos, efectos con velocidad e indicadores dinámicos con histéresis de 2 °C en temperatura y prioridad verde con cargador AC). |
 | `boot` | *(ninguno)* | Empleado por `systemd` durante el arranque para restaurar la última configuración guardada. |
 
 ## 4. Integración con Steam Modo Juego y Sincronización Bidireccional (`ally_steam_bridge.py`)
