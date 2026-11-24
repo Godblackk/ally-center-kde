@@ -43,5 +43,26 @@
     <entry name="cuidadoBateria" type="Bool">
       <default>true</default>
     </entry>
+    <entry name="boostPico" type="Int">
+      <default>0</default>
+    </entry>
+    <entry name="rgbModo" type="String">
+      <default>fijo</default>
+    </entry>
+    <entry name="rgbR" type="Int">
+      <default>0</default>
+    </entry>
+    <entry name="rgbG" type="Int">
+      <default>210</default>
+    </entry>
+    <entry name="rgbB" type="Int">
+      <default>255</default>
+    </entry>
+    <entry name="rgbBrillo" type="Int">
+      <default>80</default>
+    </entry>
+    <entry name="rgbVel" type="Int">
+      <default>1</default>
+    </entry>
   </group>
 </kcfg>
