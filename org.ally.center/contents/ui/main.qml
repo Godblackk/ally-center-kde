@@ -32,6 +32,9 @@ PlasmoidItem {
         timerBloqueo.restart()
     }
     property bool acConectado: false
+    property int batPct: 100
+    property string batWatts: "0.0"
+    property string batTiempo: "AC"
     property int maxTdpActual: root.acConectado ? 30 : 25
     property int ultimoPerfilKernel: -1
 
@@ -149,7 +152,9 @@ PlasmoidItem {
                         root.gpuRpm = info.gpu_rpm || 0
                         root.cpuTemp = info.temp || 0
                         root.apuWatts = info.watts || "0.0"
-
+                        if (info.bat_pct !== undefined) root.batPct = info.bat_pct
+                        if (info.bat_watts !== undefined) root.batWatts = info.bat_watts
+                        if (info.bat_tiempo !== undefined) root.batTiempo = info.bat_tiempo
                         if (!root.bloqueadoSync) {
                             if (info.tdp !== undefined) root.tdpWatts = info.tdp
                             if (info.tdp_manual !== undefined) root.tdpManual = info.tdp_manual
@@ -276,10 +281,10 @@ PlasmoidItem {
         // Tamaño compacto dinámico según el modo elegido
         Layout.minimumWidth: Kirigami.Units.gridUnit * 18
         Layout.preferredWidth: Kirigami.Units.gridUnit * 19
-        Layout.minimumHeight: root.tabActual === 0 ? Kirigami.Units.gridUnit * 19.5 :
-        (root.tabActual === 2 ? (root.rgbModo === "fijo" ? Kirigami.Units.gridUnit * 20.5 : Kirigami.Units.gridUnit * 14.5) :
-        (root.modoActual === 0 ? Kirigami.Units.gridUnit * 11.5 :
-        (root.modoActual === 1 ? Kirigami.Units.gridUnit * 17.5 : Kirigami.Units.gridUnit * 21.5)))
+        Layout.minimumHeight: root.tabActual === 0 ? Kirigami.Units.gridUnit * 20.7 :
+                                (root.tabActual === 2 ? (root.rgbModo === "fijo" ? Kirigami.Units.gridUnit * 21.7 : Kirigami.Units.gridUnit * 15.7) :
+                                (root.modoActual === 0 ? Kirigami.Units.gridUnit * 12.7 :
+                                (root.modoActual === 1 ? Kirigami.Units.gridUnit * 18.7 : Kirigami.Units.gridUnit * 22.7)))
         Layout.preferredHeight: Layout.minimumHeight
 
 
@@ -305,6 +310,23 @@ PlasmoidItem {
                     checked: root.hideOnWindowDeactivate === false
                     onToggled: root.hideOnWindowDeactivate = !checked
                 }
+                Rectangle {
+                    radius: 5
+                    implicitWidth: lblAcBat.implicitWidth + 14
+                    implicitHeight: 20
+                    color: root.acConectado ? Qt.rgba(88/255, 214/255, 141/255, 0.18) : Qt.rgba(245/255, 176/255, 65/255, 0.18)
+                    border.color: root.acConectado ? "#58d68d" : "#f5b041"
+                    border.width: 1
+                    PlasmaComponents.Label {
+                        id: lblAcBat
+                        anchors.centerIn: parent
+                        text: (root.acConectado ? "🔌 AC · " : "🔋 BAT · ") + root.batPct + "%"
+                        font.pointSize: 7.5
+                        font.bold: true
+                        color: root.acConectado ? "#58d68d" : "#f5b041"
+                    }
+                }
+
             }
 
             // Telemetría compacta en una sola franja
@@ -343,6 +365,30 @@ PlasmoidItem {
                 }
 
             }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+                PlasmaComponents.Label {
+                    property real wBatNum: parseFloat(root.batWatts) || 0
+                    text: root.acConectado
+                    ? (wBatNum < 0.5 ? ("🔋 Batería: " + (root.cuidadoBateria ? "Límite 80%" : "Completa")) : ("⚡ Cargando: +" + root.batWatts + " W"))
+                    : ("🔋 Consumo: " + root.batWatts + " W")
+                    font.pointSize: 8
+                    opacity: 0.85
+                    Layout.fillWidth: true
+                }
+                PlasmaComponents.Label {
+                    property real wBatNum: parseFloat(root.batWatts) || 0
+                    text: root.acConectado
+                    ? ("Estado: " + (wBatNum < 0.5 ? "En reposo" : "En carga"))
+                    : ("Restante: " + root.batTiempo)
+                    font.pointSize: 8
+                    font.bold: true
+                    color: "#3daee9"
+                }
+            }
+
 
             // Selector de 3 Pestañas
             RowLayout {
@@ -1089,8 +1135,12 @@ PlasmoidItem {
                                         if (h >= 13 && h < 20) return Qt.rgba(0, 210/255, 1, 1)
                                             return Qt.rgba(1, 0, 0, 1)
                                 }
-                                if (root.rgbModo === "bateria") return Qt.rgba(0, 1, 0, 1)
-
+                                if (root.rgbModo === "bateria") {
+                                    if (root.acConectado || root.batPct > 60) return Qt.rgba(0, 1, 0, 1)
+                                    if (root.batPct >= 25) return Qt.rgba(1, 165/255, 0, 1)
+                                    if (root.batPct > 10) return Qt.rgba(1, 110/255, 0, 1)
+                                    return Qt.rgba(1, 0, 0, 1)
+                                }
                                 return Qt.rgba(root.rgbR / 255, root.rgbG / 255, root.rgbB / 255, 1)
                             }
                             border.color: "#ffffff"; border.width: 1.5

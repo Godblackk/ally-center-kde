@@ -44,14 +44,14 @@ sudo systemctl enable ally-center.service
 
 
 # Restaurar TDP, curva y RGB automaticamente al despertar de suspension/hibernacion
-sudo mkdir -p /usr/lib/systemd/system-sleep
-cat << EOF | sudo tee /usr/lib/systemd/system-sleep/ally-center > /dev/null
+sudo mkdir -p /etc/systemd/system-sleep
+cat << EOF | sudo tee /etc/systemd/system-sleep/ally-center > /dev/null
 #!/bin/sh
 if [ "\$1" = "post" ]; then
     /usr/bin/python3 $HOME/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py boot &
 fi
 EOF
-sudo chmod +x /usr/lib/systemd/system-sleep/ally-center
+sudo chmod +x /etc/systemd/system-sleep/ally-center
 
 
 # Instalar dependencia de websockets para el puente de Modo Juego

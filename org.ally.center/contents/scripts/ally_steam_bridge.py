@@ -849,7 +849,7 @@ JS_INJECT = """
                 circEl.style.background = t <= 35 ? "rgb(0,210,255)" : (t <= 65 ? "rgb(0,255,0)" : (t <= 75 ? "rgb(255,165,0)" : (t <= 85 ? "rgb(255,110,0)" : "rgb(255,0,0)")));
             } else if (modoRgb === "bateria") {
                 const b = estado.bat_pct ?? 80;
-                circEl.style.background = b > 60 ? "rgb(0,255,0)" : (b >= 25 ? "rgb(255,165,0)" : (b > 10 ? "rgb(255,110,0)" : "rgb(255,0,0)"));
+                circEl.style.background = estado.ac_conectado ? "rgb(0,255,0)" : (b > 60 ? "rgb(0,255,0)" : (b >= 25 ? "rgb(255,165,0)" : (b > 10 ? "rgb(255,110,0)" : "rgb(255,0,0)")));
             } else if (modoRgb === "hora") {
                 const h = new Date().getHours();
                 circEl.style.background = (h >= 7 && h < 13) ? "rgb(255,255,255)" : ((h >= 13 && h < 20) ? "rgb(0,210,255)" : "rgb(255,0,0)");
@@ -933,10 +933,16 @@ JS_INJECT = """
     function intentarMontarEnConfigRapida() {
         const secExistente = document.getElementById("ally-center-qam-section");
         if (secExistente && secExistente.isConnected) {
-            if (secExistente.querySelector("#ally-rgb-circulo")) return;
-            secExistente.remove();
+            if (!secExistente.querySelector("#ally-rgb-circulo")) {
+                secExistente.remove();
+            } else {
+                const p = secExistente.parentElement;
+                if (p && p.firstElementChild === secExistente && p.children.length > 1) {
+                    p.appendChild(secExistente);
+                }
+                return;
+            }
         }
-
         const wifiEl = Array.from(document.querySelectorAll("div, span, label")).find(el => {
             const t = (el.textContent || "").trim();
             return t === "Wi-Fi" || t === "Modo avión" || t === "Airplane Mode";
@@ -953,6 +959,7 @@ JS_INJECT = """
         if (!cont || cont === document.body) return;
 
         const destino = (cont.parentElement && cont.parentElement !== document.body) ? cont.parentElement : cont;
+        if (destino.children.length < 2) return;
         const sec = crearSeccionAlly();
         destino.appendChild(sec);
         enviarComando({ cmd: "estado" });
@@ -1022,6 +1029,7 @@ async def manejar_target(ws_url):
 
 async def bucle_principal():
     tareas_activas = {}
+    ciclos_rgb = 0
     while True:
         try:
             targets = await asyncio.to_thread(obtener_targets)
@@ -1039,10 +1047,29 @@ async def bucle_principal():
                     tareas_activas.pop(url, None)
         except Exception:
             pass
+
+        ciclos_rgb += 1
+        if ciclos_rgb >= 8:
+            ciclos_rgb = 0
+            try:
+                if os.path.exists("/etc/ally-center.json"):
+                    with open("/etc/ally-center.json", "r") as f:
+                        st_rgb = json.load(f)
+                    if st_rgb.get("rgb_modo") in ("temp", "bateria", "hora") and st_rgb.get("rgb_brillo", 80) > 0:
+                        asyncio.create_task(asyncio.to_thread(ejecutar_ally, ["rgb_tick"]))
+            except Exception:
+                pass
+
         await asyncio.sleep(0.35)
 
 
 if __name__ == "__main__":
+    try:
+        cef_flag = os.path.expanduser("~/.local/share/Steam/.cef-enable-remote-debugging")
+        if os.path.isdir(os.path.dirname(cef_flag)) and not os.path.exists(cef_flag):
+            open(cef_flag, "a").close()
+    except Exception:
+        pass
     try:
         asyncio.run(bucle_principal())
     except KeyboardInterrupt:

@@ -125,6 +125,9 @@ def leer_estado():
                     datos["rgb"] = cfg["rgb"]
                 if "rgb_brillo" in cfg:
                     datos["rgb_brillo"] = cfg["rgb_brillo"]
+                if "rgb_vel" in cfg:
+                    datos["rgb_vel"] = cfg["rgb_vel"]
+
 
         except Exception:
             pass
@@ -373,6 +376,8 @@ def ajustar_rgb(modo, r, g, b, brillo_pct, activo=True, vel=2):
     guardar_estado_sistema("rgb_vel", vel_int)
     if os.path.exists("/tmp/ally_rgb_cache"):
         os.remove("/tmp/ally_rgb_cache")
+    if os.path.exists("/tmp/ally_temp_tramo"):
+        os.remove("/tmp/ally_temp_tramo")
     rc, gc, bc = calcular_color_dinamico(modo_valido, *rgb_list)
     escribir_led_rgb(rc, gc, bc, brillo if activo_bool else 0, modo_hw=MODOS_HW_AURA[modo_valido], vel=vel_int)
 
@@ -382,24 +387,56 @@ def ajustar_rgb(modo, r, g, b, brillo_pct, activo=True, vel=2):
 def calcular_color_dinamico(modo, r_base=0, g_base=210, b_base=255):
     if modo == "temp":
         temp = leer_temp_apu() or 50
-        if temp <= 35:
-            return (0, 210, 255)      # Cian / Azul (<= 35 °C)
-        elif temp <= 65:
-            return (0, 255, 0)        # Verde (36 - 65 °C)
-        elif temp <= 75:
-            return (255, 165, 0)      # Amarillo (66 - 75 °C)
-        elif temp <= 85:
-            return (255, 110, 0)      # Naranja (76 - 85 °C)
-        return (255, 0, 0)            # Rojo (> 85 °C)
+        tramo_file = "/tmp/ally_temp_tramo"
+        prev_tramo = -1
+        if os.path.exists(tramo_file):
+            try:
+                prev_tramo = int(open(tramo_file).read().strip())
+            except Exception:
+                pass
+
+        # Histéresis de 2 °C al bajar para evitar parpadeo en fronteras (65/66, 75/76, 85/86)
+        if temp > 85 or (prev_tramo == 4 and temp > 83):
+            tramo = 4   # Rojo (> 85 °C)
+        elif temp > 75 or (prev_tramo == 3 and temp > 73):
+            tramo = 3   # Naranja (76 - 85 °C)
+        elif temp > 65 or (prev_tramo == 2 and temp > 63):
+            tramo = 2   # Amarillo (66 - 75 °C)
+        elif temp > 35 or (prev_tramo == 1 and temp > 33):
+            tramo = 1   # Verde (36 - 65 °C)
+        else:
+            tramo = 0   # Cian / Azul (<= 35 °C)
+
+        try:
+            with open(tramo_file, "w") as tf:
+                tf.write(str(tramo))
+        except Exception:
+            pass
+
+        colores_temp = (
+            (0, 210, 255),  # 0: Cian / Azul
+            (0, 255, 0),    # 1: Verde
+            (255, 165, 0),  # 2: Amarillo
+            (255, 110, 0),  # 3: Naranja
+            (255, 0, 0),    # 4: Rojo
+        )
+        return colores_temp[tramo]
+         # Rojo (> 85 °C)
 
 
     elif modo == "bateria":
+        if cargador_conectado():
+            return (0, 255, 0)        # Verde si el cargador está conectado
         cap = 80
-        try:
-            with open("/sys/class/power_supply/BAT0/capacity", "r") as f:
-                cap = int(f.read().strip())
-        except Exception:
-            pass
+        for bat_name in ("BAT0", "BATT"):
+            bat_path = f"/sys/class/power_supply/{bat_name}/capacity"
+            if os.path.exists(bat_path):
+                try:
+                    with open(bat_path, "r") as f:
+                        cap = int(f.read().strip())
+                    break
+                except Exception:
+                    pass
         if cap > 60:
             return (0, 255, 0)        # Verde (> 60%)
         elif cap >= 25:
@@ -407,7 +444,6 @@ def calcular_color_dinamico(modo, r_base=0, g_base=210, b_base=255):
         elif cap > 10:
             return (255, 110, 0)      # Naranja (11% - 24%)
         return (255, 0, 0)            # Rojo crítica (<= 10%)
-          # Rojo calibrado (batería baja)
 
     elif modo == "hora":
         h = time.localtime().tm_hour
