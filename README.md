@@ -142,27 +142,3 @@ Para eliminar por completo el widget, los servicios `systemd`, las reglas `sudoe
 ```bash
 ./uninstall.sh
 ```
-
-   git clone https://github.com/Godblackk/ally-center-kde.git
-   cd ally-center-kde
-   ./install.sh
-   ```
-2. Introduce tu contraseña (`sudo`) para configurar permisos y servicios.
-3. Haz **clic derecho** en la barra de tareas de KDE → **Añadir o gestionar widgets** → selecciona **Center ROG Ally**.
-
-## ¿Qué configura automáticamente `./install.sh`?
-
-- **Widget de Plasma 6:** Instala `org.ally.center` mediante `kpackagetool6`.
-- **Permisos sin contraseña:** Crea `/etc/sudoers.d/ally-center` para ajustar hardware sin pedir `sudo`.
-- **Persistencia:** Configura `ally-center.service`, el hook de suspensión (`systemd-sleep`) y el puente de Steam (`ally-steam-bridge.service`).
-
-## Actualización y desinstalación
-
-- **Actualizar:** `cd ~/ally-center-kde && git pull && ./install.sh`
-- **Desinstalar:** `cd ~/ally-center-kde && ./uninstall.sh`
-
-## Compatibilidad (ASUS ROG Ally / ROG Ally X)
-
-- **CachyOS / Arch Linux / EndeavourOS (KDE Plasma 6):** Soporte nativo completo.
-- **Bazzite / SteamOS (KDE Plasma 6):** Compatible (evita solapar con *Handheld Daemon* en Bazzite; reejecuta `./install.sh` tras grandes actualizaciones de SteamOS).
-- **GNOME:** No compatible.
