@@ -56,22 +56,28 @@ PlasmoidItem {
     property int rgbG: 0
     property int rgbB: 60
     property int rgbBrillo: 80
-    property int rgbBrilloPrevio: 80
+    property int rgbVel: 2
+    property int rgbBrilloPrevio: 2
 
     function aplicarRgb() {
         pausarSync()
-        ejecutarComando("rgb " + root.rgbModo + " " + root.rgbR + " " + root.rgbG + " " + root.rgbB + " " + root.rgbBrillo)
+        ejecutarComando("rgb " + root.rgbModo + " " + root.rgbR + " " + root.rgbG + " " + root.rgbB + " " + root.rgbBrillo + " 1 " + root.rgbVel)
     }
 
     Timer {
         id: timerRgbLive
-        interval: 60
-        onTriggered: ejecutarComando("rgb_live " + root.rgbModo + " " + root.rgbR + " " + root.rgbG + " " + root.rgbB + " " + root.rgbBrillo)
+        interval: 80
+        repeat: false
+        onTriggered: {
+            pausarSync()
+            ejecutarComando("rgb_live " + root.rgbModo + " " + root.rgbR + " " + root.rgbG + " " + root.rgbB + " " + root.rgbBrillo + " " + root.rgbVel)
+        }
     }
 
     function aplicarRgbEnVivo() {
+        if (root.rgbModo !== "fijo") return;
         pausarSync()
-        if (!timerRgbLive.running) timerRgbLive.start()
+        if (!timerRgbLive.running) timerRgbLive.restart()
     }
 
 
@@ -176,6 +182,8 @@ PlasmoidItem {
                                     root.rgbR = info.rgb[0]; root.rgbG = info.rgb[1]; root.rgbB = info.rgb[2]
                             }
                             if (info.rgb_brillo !== undefined) root.rgbBrillo = info.rgb_brillo
+                            if (info.rgb_vel !== undefined) root.rgbVel = info.rgb_vel
+
 
                         }
 
@@ -230,6 +238,7 @@ PlasmoidItem {
         }
 
         root.curvaPuntos = copia
+        root.curvaActualizada()
     }
 
     function aplicarCurva() {
@@ -248,7 +257,7 @@ PlasmoidItem {
         triggeredOnStart: true
         onTriggered: {
             ejecutarComando("estado")
-            if (root.rgbModo !== "fijo" && root.rgbBrillo > 0) ejecutarComando("rgb_tick")
+            if ((root.rgbModo === "temp" || root.rgbModo === "bateria" || root.rgbModo === "hora") && root.rgbBrillo > 0) ejecutarComando("rgb_tick")
         }
     }
 
@@ -452,8 +461,8 @@ PlasmoidItem {
                             if (root.tdpWatts < 25) root.tdpBoost = false
                         }
                         onPressedChanged: if (!pressed) {
-                            guardarConfig()
-                            aplicarTodoEnergia()
+                            timerRgbLive.stop()
+                            root.aplicarRgb()
                         }
                     }
                     RowLayout {
@@ -483,7 +492,7 @@ PlasmoidItem {
                         }
                     }
                     PlasmaComponents.Switch {
-                        text: "Boost Pico (SPPT / FPPT)"
+                        text: "Impulso SPPT / FPPT"
                         font.pointSize: 9
                         enabled: root.tdpManual && root.tdpWatts >= 25
                         checked: root.tdpBoost
@@ -688,6 +697,7 @@ PlasmoidItem {
                         PlasmaComponents.ToolTip.text: "Restaurar curva por defecto"
                         onClicked: {
                             root.curvaPuntos = Array(15, 25, 40, 55, 70, 85, 95, 100)
+                            root.curvaActualizada()
                             root.aplicarCurva()
                         }
                     }
@@ -704,11 +714,48 @@ PlasmoidItem {
                         }
                     }
                 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    PlasmaComponents.Button {
+                        text: "Silencioso"
+                        font.pointSize: 8
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 26
+                        onClicked: {
+                            root.curvaPuntos = Array(5, 10, 15, 20, 30, 40, 50, 60)
+                            root.curvaActualizada()
+                            root.aplicarCurva()
+                        }
+                    }
+                    PlasmaComponents.Button {
+                        text: "Equilibrado"
+                        font.pointSize: 8
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 26
+                        onClicked: {
+                            root.curvaPuntos = Array(15, 25, 40, 55, 70, 85, 95, 100)
+                            root.curvaActualizada()
+                            root.aplicarCurva()
+                        }
+                    }
+                    PlasmaComponents.Button {
+                        text: "Turbo"
+                        font.pointSize: 8
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 26
+                        onClicked: {
+                            root.curvaPuntos = Array(30, 45, 60, 75, 90, 100, 100, 100)
+                            root.curvaActualizada()
+                            root.aplicarCurva()
+                        }
+                    }
+                }
 
                 // VISTA A: GRÁFICO CON EJE Y (100% / 50% / 0%) Y EJE X (30° a 100°)
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Kirigami.Units.gridUnit * 11
+                    Layout.preferredHeight: Kirigami.Units.gridUnit * 9.5
                     visible: root.vistaCurva === 0
                     color: Qt.rgba(0, 0, 0, 0.25)
                     radius: 6
@@ -974,14 +1021,17 @@ PlasmoidItem {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 18
                                 from: 0; to: 100; stepSize: 5
-                                value: root.curvaPuntos[index]
+                                Component.onCompleted: slCurva.value = root.curvaPuntos[index]
                                 Connections {
                                     target: root
                                     function onCurvaActualizada() {
                                         if (!slCurva.pressed) slCurva.value = root.curvaPuntos[index]
                                     }
                                 }
-                                onMoved: root.actualizarPuntoCurva(index, value)
+                                onMoved: {
+                                    root.pausarSync()
+                                    root.actualizarPuntoCurva(index, value)
+                                }
                                 onPressedChanged: if (!pressed) root.aplicarCurva()
                             }
                             PlasmaComponents.Label {
@@ -1011,7 +1061,7 @@ PlasmoidItem {
                             checked: root.rgbBrillo > 0
                             onToggled: {
                                 if (checked) {
-                                    root.rgbBrillo = root.rgbBrilloPrevio > 0 ? root.rgbBrilloPrevio : 80
+                                    root.rgbBrillo = root.rgbBrilloPrevio > 0 ? root.rgbBrilloPrevio : 2
                                 } else {
                                     root.rgbBrilloPrevio = root.rgbBrillo
                                     root.rgbBrillo = 0
@@ -1020,26 +1070,61 @@ PlasmoidItem {
                             }
                         }
                         Rectangle {
+                            id: rgbIndicadorCirculo
                             width: 22; height: 22; radius: 11
+                            clip: true
                             color: {
                                 if (root.rgbBrillo === 0) return "#222222"
                                     if (root.rgbModo === "temp") {
-                                        if (root.cpuTemp < 55) return Qt.rgba(0, 210/255, 1, 1)
-                                            if (root.cpuTemp < 72) return Qt.rgba(40/255, 230/255, 90/255, 1)
-                                                if (root.cpuTemp < 84) return Qt.rgba(1, 110/255, 0, 1)
-                                                    return Qt.rgba(1, 15/255, 15/255, 1)
-                                    }
-                                    if (root.rgbModo === "hora") {
-                                        let h = new Date().getHours()
-                                        if (h >= 7 && h < 13) return Qt.rgba(1, 235/255, 195/255, 1)
-                                            if (h >= 13 && h < 20) return Qt.rgba(0, 210/255, 1, 1)
-                                                return Qt.rgba(1, 35/255, 20/255, 1)
-                                    }
-                                    if (root.rgbModo === "bateria") return Qt.rgba(35/255, 225/255, 85/255, 1)
-                                        return Qt.rgba(root.rgbR / 255, root.rgbG / 255, root.rgbB / 255, 1)
+                                    if (root.cpuTemp <= 35) return Qt.rgba(0, 210/255, 1, 1)
+                                    if (root.cpuTemp <= 65) return Qt.rgba(0, 1, 0, 1)
+                                    if (root.cpuTemp <= 75) return Qt.rgba(1, 165/255, 0, 1)
+                                    if (root.cpuTemp <= 85) return Qt.rgba(1, 110/255, 0, 1)
+                                    return Qt.rgba(1, 0, 0, 1)
+                                }
+
+                                if (root.rgbModo === "hora") {
+                                    let h = new Date().getHours()
+                                    if (h >= 7 && h < 13) return Qt.rgba(1, 1, 1, 1)
+                                        if (h >= 13 && h < 20) return Qt.rgba(0, 210/255, 1, 1)
+                                            return Qt.rgba(1, 0, 0, 1)
+                                }
+                                if (root.rgbModo === "bateria") return Qt.rgba(0, 1, 0, 1)
+
+                                return Qt.rgba(root.rgbR / 255, root.rgbG / 255, root.rgbB / 255, 1)
                             }
                             border.color: "#ffffff"; border.width: 1.5
+
+                            // Efecto visual arcoíris para Ciclo de Colores y Arcoíris
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 11
+                                visible: root.rgbBrillo > 0 && (root.rgbModo === "ciclo" || root.rgbModo === "arcoiris")
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0.0; color: "#ff0000" }
+                                    GradientStop { position: 0.33; color: "#00ff00" }
+                                    GradientStop { position: 0.66; color: "#00d2ff" }
+                                    GradientStop { position: 1.0; color: "#a528ff" }
+                                }
+                                RotationAnimator on rotation {
+                                    from: 0; to: 360
+                                    duration: root.rgbVel === 1 ? 4500 : (root.rgbVel === 3 ? 1200 : 2500)
+                                    loops: Animation.Infinite
+                                    running: root.expanded && root.rgbBrillo > 0 && (root.rgbModo === "ciclo" || root.rgbModo === "arcoiris")
+                                }
+                            }
+
+                            // Efecto visual de pulso suave para Respiración
+                            SequentialAnimation on opacity {
+                                loops: Animation.Infinite
+                                running: root.expanded && root.rgbBrillo > 0 && root.rgbModo === "respiracion"
+                                NumberAnimation { from: 1.0; to: 0.25; duration: root.rgbVel === 1 ? 1800 : (root.rgbVel === 3 ? 550 : 1000) }
+                                NumberAnimation { from: 0.25; to: 1.0; duration: root.rgbVel === 1 ? 1800 : (root.rgbVel === 3 ? 550 : 1000) }
+                            }
+                            onOpacityChanged: if (root.rgbModo !== "respiracion" && opacity !== 1.0) opacity = 1.0
                         }
+
                     }
 
                     RowLayout {
@@ -1050,10 +1135,11 @@ PlasmoidItem {
                         PlasmaComponents.ComboBox {
                             font.pointSize: 8.5
                             Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
-                            model: Array("Fijo (Color)", "Temperatura APU", "Nivel Batería", "Ciclo Horario")
-                            currentIndex: root.rgbModo === "temp" ? 1 : (root.rgbModo === "bateria" ? 2 : (root.rgbModo === "hora" ? 3 : 0))
+                            readonly property var modosLista: Array("fijo", "respiracion", "ciclo", "arcoiris", "temp", "bateria", "hora")
+                            model: Array("Fijo (Color)", "Respiración", "Ciclo de Colores", "Arcoíris", "Temperatura APU", "Nivel Batería", "Ciclo Horario")
+                            currentIndex: Math.max(0, modosLista.indexOf(root.rgbModo))
                             onActivated: (index) => {
-                                root.rgbModo = (index === 1) ? "temp" : ((index === 2) ? "bateria" : ((index === 3) ? "hora" : "fijo"))
+                                root.rgbModo = modosLista[index]
                                 root.aplicarRgb()
                             }
                         }
@@ -1061,6 +1147,7 @@ PlasmoidItem {
 
                     ColumnLayout {
                         Layout.fillWidth: true
+                        visible: root.rgbModo !== "ciclo" && root.rgbModo !== "arcoiris"
                         enabled: root.rgbBrillo > 0
                         opacity: root.rgbBrillo > 0 ? 1.0 : 0.45
                         spacing: 0
@@ -1078,17 +1165,47 @@ PlasmoidItem {
                                 root.aplicarRgbEnVivo()
                             }
                             onPressedChanged: if (!pressed) {
+                                timerRgbLive.stop()
                                 root.rgbBrilloPrevio = root.rgbBrillo
                                 root.aplicarRgb()
                             }
                         }
                     }
 
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: root.rgbModo === "respiracion" || root.rgbModo === "ciclo" || root.rgbModo === "arcoiris"
+                        enabled: root.rgbBrillo > 0
+                        opacity: root.rgbBrillo > 0 ? 1.0 : 0.45
+                        spacing: 0
+                        RowLayout {
+                            Layout.fillWidth: true
+                            PlasmaComponents.Label { text: "Velocidad"; font.pointSize: 9; Layout.fillWidth: true }
+                            PlasmaComponents.Label {
+                                text: root.rgbVel === 1 ? "Lenta" : (root.rgbVel === 3 ? "Rápida" : "Media")
+                                font.pointSize: 9; font.bold: true
+                            }
+                        }
+                        PlasmaComponents.Slider {
+                            Layout.fillWidth: true
+                            from: 1; to: 3; stepSize: 1
+                            value: root.rgbVel
+                            onMoved: root.rgbVel = value
+                            onPressedChanged: if (!pressed) root.aplicarRgb()
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            PlasmaComponents.Label { text: "Lenta"; font.pointSize: 7.5; opacity: 0.7; Layout.fillWidth: true }
+                            PlasmaComponents.Label { text: "Rápida"; font.pointSize: 7.5; opacity: 0.7 }
+                        }
+                    }
+
+
                     // Controles de color (solo visibles en modo Fijo)
                     ColumnLayout {
                         Layout.fillWidth: true
-                        visible: root.rgbModo === "fijo"
-                        enabled: root.rgbBrillo > 0 && root.rgbModo === "fijo"
+                        visible: root.rgbModo === "fijo" || root.rgbModo === "respiracion" || root.rgbModo === "pulso"
+                        enabled: root.rgbBrillo > 0
                         opacity: root.rgbBrillo > 0 ? 1.0 : 0.45
                         spacing: Kirigami.Units.smallSpacing
 
@@ -1099,13 +1216,13 @@ PlasmoidItem {
                             spacing: 6
                             Repeater {
                                 model: Array(
-                                    { r: 255, g: 0, b: 0 },
-                                    { r: 0, g: 210, b: 255 },
-                                    { r: 165, g: 40, b: 255 },
-                                    { r: 30, g: 230, b: 90 },
-                                    { r: 255, g: 110, b: 0 },
-                                    { r: 255, g: 215, b: 0 },
-                                    { r: 255, g: 255, b: 255 }
+                                    { r: 255, g: 0, b: 0 }, //Rojo
+                                    { r: 0, g: 210, b: 255 }, //Cian
+                                    { r: 165, g: 40, b: 255 }, //Morado / Violeta
+                                    { r: 0, g: 255, b: 0  }, //Verde
+                                    { r: 255, g: 110, b: 0 }, //Naranja
+                                    { r: 255, g: 165, b: 0 }, //Amarillo
+                                    { r: 255, g: 255, b: 255 } //Blanco
                                 )
                                 delegate: Rectangle {
                                     Layout.fillWidth: true

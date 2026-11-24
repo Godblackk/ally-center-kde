@@ -30,7 +30,7 @@ def leer_estado_str():
     try:
         with open("/etc/ally-center.json", "r") as f:
             cfg = json.load(f)
-            for k in ("curva", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost", "bateria_80", "rgb_modo", "rgb", "rgb_brillo", "modo_fan", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"):
+            for k in ("curva", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost", "bateria_80", "rgb_modo", "rgb", "rgb_brillo","rgb_vel", "modo_fan", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"):
                 if k in cfg:
                     datos[k] = cfg[k]
     except Exception:
@@ -44,7 +44,8 @@ JS_INJECT = """
     if (window.__allyObs) window.__allyObs.disconnect();
 
     const TEMPS = Array.of(30, 40, 50, 60, 70, 80, 90, 100);
-    const CURVA_DEF = Array.of(30, 40, 50, 60, 70, 80, 90, 100);
+    const CURVA_DEF = Array.of(15, 25, 40, 55, 70, 85, 95, 100);
+
 
     let estado = {
         modelo: "Center ROG Ally X",
@@ -68,10 +69,10 @@ JS_INJECT = """
         vincular_fans: true,
         cpu_pct: 50,
         gpu_pct: 50,
-
         rgb_modo: "fijo",
         rgb: Array.of(0, 210, 255),
-        rgb_brillo: 80
+        rgb_brillo: 80,
+        rgb_brillo_previo: 80
     };
 
     let tabActiva = "tdp";
@@ -99,6 +100,27 @@ JS_INJECT = """
         box.style.cssText = "background: rgba(14, 20, 27, 0.94); border: 1px solid rgba(102, 192, 244, 0.28); border-radius: 10px; padding: 12px; width: 100%; box-sizing: border-box; margin: 14px 0 24px 0; color: #dcdedf; font-family: Motiva Sans, Arial, sans-serif; user-select: none;";
         box.innerHTML = `
 
+            <style>
+                #ally-center-qam-section input[type="range"] {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    height: 6px;
+                    background: #2a475e;
+                    border-radius: 4px;
+                    outline: none;
+                }
+                #ally-center-qam-section input[type="range"]::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 50%;
+                    background: #66c0f4;
+                    border: 2px solid #ffffff;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+                    cursor: pointer;
+                }
+            </style>
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <span id="ally-tel-modelo" style="font-weight: 700; font-size: 13px; color: #66c0f4;">⚡ ${estado.modelo}</span>
@@ -145,7 +167,7 @@ JS_INJECT = """
                 </button>
             </div>
 
-            <div id="ally-pane-tdp">
+            <div id="ally-pane-tdp" style="background: #1b2838; border-radius: 8px; padding: 10px;">
                 <div id="ally-perfil-wrapper" style="position: relative; margin-bottom: 10px;">
                     <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer;">
                         <span>Perfil Energía</span>
@@ -175,7 +197,7 @@ JS_INJECT = """
                         <button id="ally-preset-30" class="ally-preset-btn" data-w="30" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">30W</button>
                     </div>
                     <div id="ally-row-tdp-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 0;">
-                        <span>Boost Pico (SPPT / FPPT)</span>
+                        <span>"Impulso SPPT / FPPT"</span>
                         <span id="ally-tdp-boost-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">OFF</span>
                     </div>
                 </div>
@@ -192,7 +214,7 @@ JS_INJECT = """
                 </div>
             </div>
 
-            <div id="ally-pane-fan" style="display: none;">
+            <div id="ally-pane-fan" style="display: none; background: #1b2838; border-radius: 8px; padding: 10px;">
                 <div style="position: relative; margin-bottom: 10px;">
                     <div id="ally-row-fan-modo" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer;">
                         <span>Modo</span>
@@ -211,9 +233,9 @@ JS_INJECT = """
 
                 <div id="ally-fan-sub-manual" style="display: none;">
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
-                        <button class="ally-fan-preset" data-pct="30" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Silencioso</button>
-                        <button class="ally-fan-preset" data-pct="60" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Equilibrado</button>
-                        <button class="ally-fan-preset" data-pct="90" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Turbo</button>
+                        <button class="ally-fan-preset" data-pct="30" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Silencioso</button>
+                        <button class="ally-fan-preset" data-pct="60" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Equilibrado</button>
+                        <button class="ally-fan-preset" data-pct="90" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Turbo</button>
                     </div>
 
                     <div id="ally-row-vincular" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 8px; cursor: pointer; padding: 3px 0;">
@@ -222,32 +244,37 @@ JS_INJECT = """
                     </div>
 
                     <div id="ally-fan-ambos-box">
-                        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
                             <span>Ambos</span>
                             <strong id="ally-fan-ambos-val" style="color: #66c0f4;">50%</strong>
                         </div>
-                        <input id="ally-fan-ambos-slider" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+                        <input id="ally-fan-ambos-slider" type="range" min="0" max="100" value="50" style="width: 100%; margin: 4px 0;">
                     </div>
 
-                    <div id="ally-fan-sep-box" style="display: none; flex-direction: column; gap: 8px;">
+                    <div id="ally-fan-sep-box" style="display: none; flex-direction: column; gap: 10px;">
                         <div>
-                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
                                 <span>CPU Fan</span>
                                 <strong id="ally-fan-cpu-val" style="color: #66c0f4;">50%</strong>
                             </div>
-                            <input id="ally-fan-cpu-slider" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+                            <input id="ally-fan-cpu-slider" type="range" min="0" max="100" value="50" style="width: 100%; margin: 4px 0;">
                         </div>
                         <div>
-                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
                                 <span>GPU Fan</span>
                                 <strong id="ally-fan-gpu-val" style="color: #66c0f4;">50%</strong>
                             </div>
-                            <input id="ally-fan-gpu-slider" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+                            <input id="ally-fan-gpu-slider" type="range" min="0" max="100" value="50" style="width: 100%; margin: 4px 0;">
                         </div>
                     </div>
                 </div>
 
                 <div id="ally-fan-sub-curva" style="display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 8px;">
+                        <button class="ally-curva-preset" data-pts="5,10,15,20,30,40,50,60" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 6px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Silencioso</button>
+                        <button class="ally-curva-preset" data-pts="15,25,40,55,70,85,95,100" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 6px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Equilibrado</button>
+                        <button class="ally-curva-preset" data-pts="30,45,60,75,90,100,100,100" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 6px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Turbo</button>
+                    </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <span style="font-size: 12px; font-weight: 700;">Puntos de Curva</span>
                         <div style="display: flex; gap: 6px;">
@@ -255,11 +282,11 @@ JS_INJECT = """
                             <button id="ally-row-curva-modo" style="background: #2a475e; color: #fff; border: none; border-radius: 4px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer;">Cascada</button>
                         </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
                         ${TEMPS.map((t, i) => `
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="width: 36px; font-size: 11px; color: #8b929a;">${t}°C</span>
-                                <input class="ally-pt" data-idx="${i}" type="range" min="0" max="100" value="${CURVA_DEF.at(i)}" style="flex: 1; accent-color: #66c0f4; height: 20px; cursor: pointer;">
+                                <input class="ally-pt" data-idx="${i}" type="range" min="0" max="100" value="${CURVA_DEF.at(i)}" style="flex: 1;">
                                 <span class="ally-pt-val" style="width: 34px; text-align: right; font-size: 11px; font-weight: 600;">${CURVA_DEF.at(i)}%</span>
                             </div>
                         `).join("")}
@@ -268,35 +295,88 @@ JS_INJECT = """
             </div>
 
 
-            <div id="ally-pane-rgb" style="display: none;">
-                <div style="margin-bottom: 10px;">
-                    <div style="font-size: 12px; color: #8b929a; margin-bottom: 6px;">Modo de Iluminación</div>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
-                        <button class="ally-rgb-modo" data-modo="fijo" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid #66c0f4; background: #2a475e; color: #fff;">Color Fijo</button>
-                        <button class="ally-rgb-modo" data-modo="temp" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a;">Temperatura APU</button>
-                        <button class="ally-rgb-modo" data-modo="bateria" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a;">Nivel Batería</button>
-                        <button class="ally-rgb-modo" data-modo="hora" style="padding: 7px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #1b2838; color: #8b929a;">Hora del Día</button>
+            <div id="ally-pane-rgb" style="display: none; background: #1b2838; border-radius: 8px; padding: 10px;">
+                <div id="ally-row-rgb-activo" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 10px; cursor: pointer; padding: 2px 0;">
+                    <span style="font-weight: 700;">Iluminación LED</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="ally-rgb-circulo" style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #fff; background: rgb(0,210,255); display: inline-block; box-sizing: border-box;"></span>
+                        <span id="ally-rgb-activo-badge" style="background: #66c0f4; color: #0e141b; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">ON</span>
                     </div>
                 </div>
-                <div style="margin-bottom: 10px;">
-                    <div style="font-size: 12px; color: #8b929a; margin-bottom: 6px;">Colores Rápidos</div>
-                    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;">
-                        <button class="ally-rgb-swatch" data-rgb="0,210,255" style="height: 28px; border-radius: 5px; border: 2px solid #fff; background: rgb(0,210,255); cursor: pointer;"></button>
-                        <button class="ally-rgb-swatch" data-rgb="255,30,50" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(255,30,50); cursor: pointer;"></button>
-                        <button class="ally-rgb-swatch" data-rgb="40,230,90" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(40,230,90); cursor: pointer;"></button>
-                        <button class="ally-rgb-swatch" data-rgb="170,60,255" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(170,60,255); cursor: pointer;"></button>
-                        <button class="ally-rgb-swatch" data-rgb="255,150,0" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(255,150,0); cursor: pointer;"></button>
-                        <button class="ally-rgb-swatch" data-rgb="255,255,255" style="height: 28px; border-radius: 5px; border: 1px solid #444; background: rgb(255,255,255); cursor: pointer;"></button>
+
+
+                <div id="ally-rgb-controles" style="transition: opacity 0.15s;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
+                        <button class="ally-rgb-cat-btn" data-cat="fijo" style="background: #66c0f4; color: #0e141b; border: 1px solid #66c0f4; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Fijo</button>
+                        <button class="ally-rgb-cat-btn" data-cat="efectos" style="background: #0e141b; color: #8b929a; border: 1px solid #2a475e; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Efectos</button>
+                        <button class="ally-rgb-cat-btn" data-cat="sensores" style="background: #0e141b; color: #8b929a; border: 1px solid #2a475e; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Sensores</button>
                     </div>
-                </div>
-                <div>
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
-                        <span>Brillo LED</span>
-                        <strong id="ally-rgb-brillo-val" style="color: #66c0f4;">80%</strong>
+
+                    <div id="ally-rgb-sec-efectos" style="display: none; flex-direction: column; gap: 8px; margin-bottom: 10px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+                            <button class="ally-rgb-modo-btn" data-modo="respiracion" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Respiración</button>
+                            <button class="ally-rgb-modo-btn" data-modo="ciclo" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Ciclo Colores</button>
+                            <button class="ally-rgb-modo-btn" data-modo="arcoiris" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Arcoíris</button>
+                        </div>
+
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                                <span>Velocidad</span>
+                                <strong id="ally-rgb-vel-val" style="color: #66c0f4;">Media</strong>
+                            </div>
+                            <input id="ally-rgb-vel" type="range" min="1" max="3" step="1" value="2" style="width: 100%; margin: 4px 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 10px; color: #8b929a; margin-top: 2px;">
+                                <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                                    <span style="width: 1px; height: 5px; background: #66c0f4; margin-bottom: 2px; margin-left: 8px;"></span>
+                                    <span>Lenta</span>
+                                </div>
+                                <span style="width: 1px; height: 5px; background: #4f6478;"></span>
+                                <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                                    <span style="width: 1px; height: 5px; background: #4f6478; margin-bottom: 2px; margin-right: 8px;"></span>
+                                    <span>Rápida</span>
+                                </div>
+                            </div>
+                        </div>
+
+
                     </div>
-                    <input id="ally-rgb-brillo" type="range" min="0" max="100" value="80" style="width: 100%; accent-color: #66c0f4; height: 22px; cursor: pointer;">
+
+                    <div id="ally-rgb-sec-sensores" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
+                        <button class="ally-rgb-modo-btn" data-modo="temp" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Temp APU</button>
+                        <button class="ally-rgb-modo-btn" data-modo="bateria" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Batería</button>
+                        <button class="ally-rgb-modo-btn" data-modo="hora" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">Horario</button>
+                    </div>
+
+                    <div id="ally-rgb-colores-box" style="margin-bottom: 10px;">
+                        <div style="font-size: 11px; color: #8b929a; margin-bottom: 6px;">Colores Rápidos</div>
+                        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;">
+                            <button class="ally-rgb-swatch" data-rgb="255,0,0" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(255,0,0); cursor: pointer;"></button>
+                            <button class="ally-rgb-swatch" data-rgb="0,210,255" style="height: 26px; border-radius: 5px; border: 2px solid #fff; background: rgb(0,210,255); cursor: pointer;"></button>
+                            <button class="ally-rgb-swatch" data-rgb="165,40,255" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(165,40,255); cursor: pointer;"></button>
+                            <button class="ally-rgb-swatch" data-rgb="0,255,0" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(0,255,0); cursor: pointer;"></button>
+                            <button class="ally-rgb-swatch" data-rgb="255,110,0" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(255,110,0); cursor: pointer;"></button>
+                            <button class="ally-rgb-swatch" data-rgb="255,165,0" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(255,165,0); cursor: pointer;"></button>
+                            <button class="ally-rgb-swatch" data-rgb="255,255,255" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(255,255,255); cursor: pointer;"></button>
+                        </div>
+                    </div>
+
+
+
+                    <div id="ally-rgb-brillo-box">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                            <span>Brillo LED</span>
+                            <strong id="ally-rgb-brillo-val" style="color: #66c0f4;">80%</strong>
+                        </div>
+                        <input id="ally-rgb-brillo" type="range" min="5" max="100" step="5" value="80" style="width: 100%; margin: 4px 0;">
+                        <div id="ally-rgb-brillo-ticks" style="display: flex; justify-content: space-between; padding: 0 8px; margin-top: 2px;">
+                            ${Array.from({length: 20}, (_, i) => '<span class="ally-brillo-tick" data-idx="' + i + '" style="width: 1px; height: 5px; background: #4f6478;"></span>').join("")}
+                        </div>
+                    </div>
                 </div>
             </div>
+
+
         `;
 
         box.querySelectorAll(".ally-subtab").forEach(btn => {
@@ -504,38 +584,94 @@ JS_INJECT = """
             };
         });
 
+
+        // Presets de Curva Personalizada (Silencioso, Equilibrado, Turbo)
+        box.querySelectorAll(".ally-curva-preset").forEach(btn => {
+            btn.onclick = () => {
+                estado.curva = btn.dataset.pts.split(",").map(Number);
+                estado.modo_fan = "curva";
+                actualizarUI();
+                enviarComando({ cmd: "guardar_curva", val: estado.curva.slice() });
+            };
+        });
+
+
+
+
+
+        // Controles RGB (Switch Encendido/Apagado + Selector de Modo + Colores + Brillo 5-100%)
         const aplicarRgb = () => {
             actualizarUI();
             enviarComando({
                 cmd: "rgb",
                 modo: estado.rgb_modo,
                 rgb: estado.rgb,
-                brillo: estado.rgb_brillo
+                brillo: estado.rgb_brillo,
+                vel: estado.rgb_vel || 2
             });
         };
-        box.querySelectorAll(".ally-rgb-modo").forEach(btn => {
+
+        box.querySelector("#ally-row-rgb-activo").onclick = () => {
+            if (estado.rgb_brillo > 0) {
+                estado.rgb_brillo_previo = estado.rgb_brillo;
+                estado.rgb_brillo = 0;
+            } else {
+                estado.rgb_brillo = Math.max(5, estado.rgb_brillo_previo || 80);
+            }
+            aplicarRgb();
+        };
+
+        box.querySelectorAll(".ally-rgb-cat-btn").forEach(btn => {
             btn.onclick = () => {
+                if (estado.rgb_brillo === 0) return;
+                const cat = btn.dataset.cat;
+                if (cat === "fijo") estado.rgb_modo = "fijo";
+                else if (cat === "efectos" && !["respiracion", "ciclo", "arcoiris"].includes(estado.rgb_modo)) estado.rgb_modo = "respiracion";
+                else if (cat === "sensores" && !["temp", "bateria", "hora"].includes(estado.rgb_modo)) estado.rgb_modo = "temp";
+                aplicarRgb();
+            };
+        });
+
+        box.querySelectorAll(".ally-rgb-modo-btn").forEach(btn => {
+            btn.onclick = () => {
+                if (estado.rgb_brillo === 0) return;
                 estado.rgb_modo = btn.dataset.modo;
                 aplicarRgb();
             };
         });
+
         box.querySelectorAll(".ally-rgb-swatch").forEach(btn => {
             btn.onclick = () => {
+                if (estado.rgb_brillo === 0) return;
                 estado.rgb = btn.dataset.rgb.split(",").map(Number);
-                estado.rgb_modo = "fijo";
+                if (!["fijo", "respiracion"].includes(estado.rgb_modo)) {
+                    estado.rgb_modo = "fijo";
+                }
                 aplicarRgb();
             };
         });
+
         const brilloSlider = box.querySelector("#ally-rgb-brillo");
         let timerRgb = null;
         brilloSlider.oninput = () => {
-            estado.rgb_brillo = parseInt(brilloSlider.value);
+            if (estado.rgb_brillo === 0) return;
+            const v = Math.max(5, parseInt(brilloSlider.value));
+            estado.rgb_brillo = v;
+            estado.rgb_brillo_previo = v;
             actualizarUI();
             clearTimeout(timerRgb);
             timerRgb = setTimeout(aplicarRgb, 150);
         };
 
+        const velSlider = box.querySelector("#ally-rgb-vel");
+        velSlider.oninput = () => {
+            if (estado.rgb_brillo === 0) return;
+            estado.rgb_vel = parseInt(velSlider.value);
+            aplicarRgb();
+        };
+
         return box;
+
     }
     function actualizarUI() {
         const sec = document.getElementById("ally-center-qam-section");
@@ -673,14 +809,102 @@ JS_INJECT = """
             });
         }
 
-        sec.querySelectorAll(".ally-rgb-modo").forEach(btn => {
-            const act = btn.dataset.modo === estado.rgb_modo;
-            btn.style.background = act ? "#2a475e" : "#1b2838";
-            btn.style.color = act ? "#fff" : "#8b929a";
-            btn.style.borderColor = act ? "#66c0f4" : "transparent";
+        const rgbOn = (estado.rgb_brillo ?? 80) > 0;
+        if (rgbOn) estado.rgb_brillo_previo = estado.rgb_brillo;
+        const rgbActBadge = sec.querySelector("#ally-rgb-activo-badge");
+        rgbActBadge.textContent = rgbOn ? "ON" : "OFF";
+        rgbActBadge.style.background = rgbOn ? "#66c0f4" : "#2a475e";
+        rgbActBadge.style.color = rgbOn ? "#0e141b" : "#fff";
+
+        const rgbCtrl = sec.querySelector("#ally-rgb-controles");
+        rgbCtrl.style.opacity = rgbOn ? "1" : "0.4";
+        rgbCtrl.style.pointerEvents = rgbOn ? "auto" : "none";
+
+        const modoRgb = estado.rgb_modo || "fijo";
+        const circEl = sec.querySelector("#ally-rgb-circulo");
+        if (circEl) {
+            if (!document.getElementById("ally-rgb-anim-style")) {
+                const st = document.createElement("style");
+                st.id = "ally-rgb-anim-style";
+                st.textContent = "@keyframes allySpin { to { transform: rotate(360deg); } } @keyframes allyPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }";
+                document.head.appendChild(st);
+            }
+            const velAct = estado.rgb_vel || 2;
+            const durSpin = velAct === 1 ? "4.5s" : (velAct === 3 ? "1.2s" : "2.5s");
+            const durPulse = velAct === 1 ? "3.6s" : (velAct === 3 ? "1.1s" : "2.0s");
+            const rgbArr = Array.isArray(estado.rgb) && estado.rgb.length === 3 ? estado.rgb : [0, 210, 255];
+            const rgbCss = `rgb(${rgbArr[0]}, ${rgbArr[1]}, ${rgbArr[2]})`;
+
+            circEl.style.animation = "none";
+            if (!rgbOn) {
+                circEl.style.background = "#222222";
+            } else if (modoRgb === "ciclo" || modoRgb === "arcoiris") {
+                circEl.style.background = "linear-gradient(90deg, #ff0000 0%, #00ff00 33%, #00d2ff 66%, #a528ff 100%)";
+                circEl.style.animation = `allySpin ${durSpin} linear infinite`;
+            } else if (modoRgb === "respiracion") {
+                circEl.style.background = rgbCss;
+                circEl.style.animation = `allyPulse ${durPulse} ease-in-out infinite`;
+            } else if (modoRgb === "temp") {
+                const t = estado.temp ?? 50;
+                circEl.style.background = t <= 35 ? "rgb(0,210,255)" : (t <= 65 ? "rgb(0,255,0)" : (t <= 75 ? "rgb(255,165,0)" : (t <= 85 ? "rgb(255,110,0)" : "rgb(255,0,0)")));
+            } else if (modoRgb === "bateria") {
+                const b = estado.bat_pct ?? 80;
+                circEl.style.background = b > 60 ? "rgb(0,255,0)" : (b >= 25 ? "rgb(255,165,0)" : (b > 10 ? "rgb(255,110,0)" : "rgb(255,0,0)"));
+            } else if (modoRgb === "hora") {
+                const h = new Date().getHours();
+                circEl.style.background = (h >= 7 && h < 13) ? "rgb(255,255,255)" : ((h >= 13 && h < 20) ? "rgb(0,210,255)" : "rgb(255,0,0)");
+            } else {
+                circEl.style.background = rgbCss;
+            }
+        }
+
+
+        const catRgb = ["respiracion", "ciclo", "arcoiris"].includes(modoRgb)
+            ? "efectos"
+            : (["temp", "bateria", "hora"].includes(modoRgb) ? "sensores" : "fijo");
+
+        sec.querySelectorAll(".ally-rgb-cat-btn").forEach(btn => {
+            const act = btn.dataset.cat === catRgb;
+            btn.style.background = act ? "#66c0f4" : "#0e141b";
+            btn.style.color = act ? "#0e141b" : "#8b929a";
+            btn.style.borderColor = act ? "#66c0f4" : "#2a475e";
         });
-        sec.querySelector("#ally-rgb-brillo").value = estado.rgb_brillo ?? 80;
-        sec.querySelector("#ally-rgb-brillo-val").textContent = `${estado.rgb_brillo ?? 80}%`;
+
+        sec.querySelector("#ally-rgb-sec-efectos").style.display = catRgb === "efectos" ? "flex" : "none";
+        sec.querySelector("#ally-rgb-sec-sensores").style.display = catRgb === "sensores" ? "grid" : "none";
+
+        sec.querySelectorAll(".ally-rgb-modo-btn").forEach(btn => {
+            const act = btn.dataset.modo === modoRgb;
+            btn.style.background = act ? "#2a475e" : "#0e141b";
+            btn.style.borderColor = act ? "#66c0f4" : "#3d5a73";
+            btn.style.color = act ? "#66c0f4" : "#fff";
+        });
+
+        const usaColor = ["fijo", "respiracion"].includes(modoRgb);
+        sec.querySelector("#ally-rgb-colores-box").style.display = usaColor ? "block" : "none";
+
+        sec.querySelector("#ally-rgb-brillo-box").style.display = ["ciclo", "arcoiris"].includes(modoRgb) ? "none" : "block";
+
+
+
+        const brilloVis = rgbOn ? Math.max(5, estado.rgb_brillo) : Math.max(5, estado.rgb_brillo_previo || 80);
+        const brSl = sec.querySelector("#ally-rgb-brillo");
+        const pctBr = ((brilloVis - 5) / 95) * 100;
+        brSl.value = brilloVis;
+        brSl.style.background = `linear-gradient(to right, #66c0f4 ${pctBr}%, #2a475e ${pctBr}%)`;
+        sec.querySelector("#ally-rgb-brillo-val").textContent = `${brilloVis}%`;
+        sec.querySelectorAll(".ally-brillo-tick").forEach((tk, idx) => {
+            tk.style.background = ((idx + 1) * 5) <= brilloVis ? "#66c0f4" : "#4f6478";
+        });
+
+        const velAct = estado.rgb_vel || 2;
+        const velSl = sec.querySelector("#ally-rgb-vel");
+        const pctVel = ((velAct - 1) / 2) * 100;
+        velSl.value = velAct;
+        velSl.style.background = `linear-gradient(to right, #66c0f4 ${pctVel}%, #2a475e ${pctVel}%)`;
+        velSl.style.setProperty("--vel-pct", `${pctVel}%`);
+        sec.querySelector("#ally-rgb-vel-val").textContent = velAct === 1 ? "Lenta" : (velAct === 3 ? "Rápida" : "Media");
+
     }
     window.__allyActualizarEstado = (jsonStr) => {
         try {
@@ -708,7 +932,10 @@ JS_INJECT = """
 
     function intentarMontarEnConfigRapida() {
         const secExistente = document.getElementById("ally-center-qam-section");
-        if (secExistente && secExistente.isConnected) return;
+        if (secExistente && secExistente.isConnected) {
+            if (secExistente.querySelector("#ally-rgb-circulo")) return;
+            secExistente.remove();
+        }
 
         const wifiEl = Array.from(document.querySelectorAll("div, span, label")).find(el => {
             const t = (el.textContent || "").trim();
@@ -781,15 +1008,14 @@ async def manejar_target(ws_url):
                         ejecutar_ally(list(("cpu_fan", str(int(payload.get("cpu", 50))))))
                         ejecutar_ally(list(("gpu_fan", str(int(payload.get("gpu", 50))))))
                     elif cmd == "rgb":
-                        r, g, b = tuple(payload.get("rgb", (0, 210, 255)))
-                        ejecutar_ally(list((
-                            "rgb",
-                            str(payload.get("modo", "fijo")),
-                            str(int(r)),
-                            str(int(g)),
-                            str(int(b)),
-                            str(int(payload.get("brillo", 80)))
-                        )))
+                        modo = str(payload.get("modo", "fijo"))
+                        rgb_val = payload.get("rgb") or (0, 210, 255)
+                        r, g, b = [str(int(c)) for c in rgb_val]
+                        br = str(int(payload.get("brillo", 80)))
+                        vel = str(int(payload.get("vel", 2)))
+                        ejecutar_ally(list(("rgb", modo, r, g, b, br, "1", vel)))
+
+
     except Exception:
         pass
 

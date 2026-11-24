@@ -299,39 +299,50 @@ def guardar_estado_sistema(clave, valor):
 LED_RGB_DIR = "/sys/class/leds/ally:rgb:joystick_rings"
 
 
-def escribir_led_rgb(r, g, b, brillo_pct, guardar_mcu=True):
+MODOS_HW_AURA = {
+    "fijo": 0x00,
+    "temp": 0x00,
+    "bateria": 0x00,
+    "hora": 0x00,
+    "respiracion": 0x01,
+    "ciclo": 0x02,
+    "arcoiris": 0x03,
+    "pulso": 0x04,
+}
+
+VELOCIDADES_AURA = {
+    1: 0xE1,  # Lenta
+    2: 0xEB,  # Media
+    3: 0xF5,  # Rápida
+}
+
+
+def calibrar_color_mcu(r, g, b):
+    r = max(0, min(255, int(r)))
+    g = max(0, min(255, int(g)))
+    b = max(0, min(255, int(b)))
+    # Compensa la mayor luminancia de los LEDs verde y azul en el difusor de la ROG Ally
+    g_cal = int(round(255.0 * ((g / 255.0) ** 1.35)))
+    b_cal = int(round(255.0 * ((b / 255.0) ** 1.45)))
+    if r > 180 and g < 60 and b < 60:
+        g_cal = int(g_cal * 0.4)
+        b_cal = 0
+    return r, g_cal, b_cal
+
+
+def escribir_led_rgb(r, g, b, brillo_pct, guardar_mcu=True, modo_hw=0x00, vel=2):
     pct = max(0, min(100, int(brillo_pct)))
     factor = pct / 100.0
-    r_out = int(round(max(0, min(255, int(r))) * factor))
-    g_out = int(round(max(0, min(255, int(g))) * factor))
-    b_out = int(round(max(0, min(255, int(b))) * factor))
-
-    # Solo toca sysfs si está apagado o si las zonas aún no están habilitadas (evita parpadeo)
-    if os.path.exists(LED_RGB_DIR):
-        try:
-            ruta_mi = os.path.join(LED_RGB_DIR, "multi_intensity")
-            objetivo = "255 255 255 255" if pct > 0 else "0 0 0 0"
-            with open(ruta_mi, "r") as f:
-                actual = f.read().strip()
-            if actual != objetivo:
-                with open(ruta_mi, "w") as f:
-                    f.write(objetivo)
-            ruta_br = os.path.join(LED_RGB_DIR, "brightness")
-            brillo_obj = "255" if pct > 0 else "0"
-            with open(ruta_br, "r") as f:
-                br_act = f.read().strip()
-            if br_act != brillo_obj:
-                with open(ruta_br, "w") as f:
-                    f.write(brillo_obj)
-        except Exception:
-            pass
-
+    r_c, g_c, b_c = calibrar_color_mcu(r, g, b)
+    r_out = int(round(r_c * factor))
+    g_out = int(round(g_c * factor))
+    b_out = int(round(b_c * factor))
+    modo_efectivo = 0x00 if pct == 0 else modo_hw
+    vel_byte = VELOCIDADES_AURA.get(int(vel), 0xEB)
     pkt_color = bytearray(64)
-    pkt_color[:7] = bytes([0x5A, 0xB3, 0x00, 0x00, r_out, g_out, b_out])
+    pkt_color[:12] = bytes([0x5A, 0xB3, 0x00, modo_efectivo, r_out, g_out, b_out, vel_byte, 0x00, 0x00, 0x00, 0x00])
     pkt_apply = bytearray(64)
     pkt_apply[:2] = bytes([0x5A, 0xB5])
-    pkt_save = bytearray(64)
-    pkt_save[:2] = bytes([0x5A, 0xB4])
 
     for h in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
         try:
@@ -342,8 +353,6 @@ def escribir_led_rgb(r, g, b, brillo_pct, guardar_mcu=True):
                 fd = os.open(dev, os.O_RDWR | os.O_NONBLOCK)
                 os.write(fd, pkt_color)
                 os.write(fd, pkt_apply)
-                if guardar_mcu:
-                    os.write(fd, pkt_save)
                 os.close(fd)
         except Exception:
             pass
@@ -351,16 +360,38 @@ def escribir_led_rgb(r, g, b, brillo_pct, guardar_mcu=True):
 
 
 
+def ajustar_rgb(modo, r, g, b, brillo_pct, activo=True, vel=2):
+    modo_valido = modo if modo in MODOS_HW_AURA else "fijo"
+    rgb_list = [max(0, min(255, int(r))), max(0, min(255, int(g))), max(0, min(255, int(b)))]
+    brillo = max(0, min(100, int(brillo_pct)))
+    vel_int = max(1, min(3, int(vel)))
+    activo_bool = bool(int(activo)) if str(activo).isdigit() else (str(activo).lower() not in ("false", "0", "off"))
+    guardar_estado_sistema("rgb_modo", modo_valido)
+    guardar_estado_sistema("rgb", rgb_list)
+    guardar_estado_sistema("rgb_brillo", brillo)
+    guardar_estado_sistema("rgb_activo", activo_bool)
+    guardar_estado_sistema("rgb_vel", vel_int)
+    if os.path.exists("/tmp/ally_rgb_cache"):
+        os.remove("/tmp/ally_rgb_cache")
+    rc, gc, bc = calcular_color_dinamico(modo_valido, *rgb_list)
+    escribir_led_rgb(rc, gc, bc, brillo if activo_bool else 0, modo_hw=MODOS_HW_AURA[modo_valido], vel=vel_int)
+
+
+
+
 def calcular_color_dinamico(modo, r_base=0, g_base=210, b_base=255):
     if modo == "temp":
-        temp = leer_temp_apu() or 55
-        if temp < 55:
-            return (0, 210, 255)      # Cian frío
-        elif temp < 72:
-            return (40, 230, 90)      # Verde templado
-        elif temp < 84:
-            return (255, 110, 0)      # Naranja carga alta
-        return (255, 15, 15)          # Rojo alerta térmica
+        temp = leer_temp_apu() or 50
+        if temp <= 35:
+            return (0, 210, 255)      # Cian / Azul (<= 35 °C)
+        elif temp <= 65:
+            return (0, 255, 0)        # Verde (36 - 65 °C)
+        elif temp <= 75:
+            return (255, 165, 0)      # Amarillo (66 - 75 °C)
+        elif temp <= 85:
+            return (255, 110, 0)      # Naranja (76 - 85 °C)
+        return (255, 0, 0)            # Rojo (> 85 °C)
+
 
     elif modo == "bateria":
         cap = 80
@@ -370,33 +401,24 @@ def calcular_color_dinamico(modo, r_base=0, g_base=210, b_base=255):
         except Exception:
             pass
         if cap > 60:
-            return (35, 225, 85)      # Verde batería alta
+            return (0, 255, 0)        # Verde (> 60%)
         elif cap >= 25:
-            return (255, 180, 0)      # Ámbar batería media
-        return (255, 20, 20)          # Rojo batería baja
+            return (255, 165, 0)      # Amarillo dorado (25% - 60%)
+        elif cap > 10:
+            return (255, 110, 0)      # Naranja (11% - 24%)
+        return (255, 0, 0)            # Rojo crítica (<= 10%)
+          # Rojo calibrado (batería baja)
 
     elif modo == "hora":
         h = time.localtime().tm_hour
         if 7 <= h < 13:
-            return (255, 235, 195)    # Mañana: blanco cálido
+            return (255, 255, 255)    # Mañana: blanco puro calibrado
         elif 13 <= h < 20:
-            return (0, 210, 255)      # Tarde: cian vibrante
-        return (255, 35, 20)          # Noche: rojo tenue anti-deslumbramiento
+            return (0, 210, 255)      # Tarde: cian vibrante calibrado
+        return (255, 0, 0)            # Noche: rojo calibrado anti-deslumbramiento
 
     return (int(r_base), int(g_base), int(b_base))
 
-
-def ajustar_rgb(modo, r, g, b, brillo_pct):
-    modo_valido = modo if modo in ("fijo", "temp", "bateria", "hora") else "fijo"
-    rgb_list = [max(0, min(255, int(r))), max(0, min(255, int(g))), max(0, min(255, int(b)))]
-    brillo = max(0, min(100, int(brillo_pct)))
-    guardar_estado_sistema("rgb_modo", modo_valido)
-    guardar_estado_sistema("rgb", rgb_list)
-    guardar_estado_sistema("rgb_brillo", brillo)
-    if os.path.exists("/tmp/ally_rgb_cache"):
-        os.remove("/tmp/ally_rgb_cache")
-    rc, gc, bc = calcular_color_dinamico(modo_valido, *rgb_list)
-    escribir_led_rgb(rc, gc, bc, brillo)
 
 
 def restaurar_boot():
@@ -440,8 +462,11 @@ def restaurar_boot():
         modo_rgb = estado.get("rgb_modo", "fijo")
         rgb_vals = estado.get("rgb", [0, 210, 255])
         brillo_rgb = estado.get("rgb_brillo", 80)
+        activo_rgb = estado.get("rgb_activo", True)
+        vel_rgb = estado.get("rgb_vel", 2)
         rc, gc, bc = calcular_color_dinamico(modo_rgb, *rgb_vals)
-        escribir_led_rgb(rc, gc, bc, brillo_rgb)
+        escribir_led_rgb(rc, gc, bc, brillo_rgb if activo_rgb else 0, modo_hw=MODOS_HW_AURA.get(modo_rgb, 0x00), vel=vel_rgb)
+
 
 
 
@@ -481,12 +506,15 @@ if __name__ == "__main__":
         restaurar_boot()
         sys.exit(0)
     elif comando == "rgb" and len(args) >= 5:
-        ajustar_rgb(args[0], args[1], args[2], args[3], args[4])
+        activo_arg = args[5] if len(args) >= 6 else True
+        vel_arg = args[6] if len(args) >= 7 else 2
+        ajustar_rgb(args[0], args[1], args[2], args[3], args[4], activo_arg, vel_arg)
         sys.exit(0)
     elif comando == "rgb_live" and len(args) >= 5:
         m_rgb, r_s, g_s, b_s, br_s, *_ = args
-        rc, gc, bc = calcular_color_dinamico(m_rgb, r_s, g_s, b_s)
-        escribir_led_rgb(rc, gc, bc, br_s, guardar_mcu=False)
+        vel_live = int(args[5]) if len(args) >= 6 else 2
+        rc, gc, bc = calcular_color_dinamico(m_rgb, int(r_s), int(g_s), int(b_s))
+        escribir_led_rgb(rc, gc, bc, int(br_s), guardar_mcu=False, modo_hw=MODOS_HW_AURA.get(m_rgb, 0x00), vel=vel_live)
         sys.exit(0)
     elif comando == "rgb_tick":
         if os.path.exists(CONFIG_SISTEMA):
