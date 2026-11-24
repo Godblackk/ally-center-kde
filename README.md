@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://githubusercontent.com" alt="Center ROG Ally X Logo" width="96" height="96">
+  <img src="docs/capturas/logo-ally.png" alt="Center ROG Ally X Logo" width="96" height="96">
   <h1>⚡ Center ROG Ally / Ally X</h1>
   <p><strong>Centro de control nativo de TDP, curvas de ventilación e iluminación RGB Aura para ASUS ROG Ally y ROG Ally X en Linux (KDE Plasma 6 + Steam Modo Juego).</strong></p>
 </div>
