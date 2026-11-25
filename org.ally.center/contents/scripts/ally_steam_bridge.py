@@ -1101,13 +1101,50 @@ async def vigilar_perfil_activo(modo):
             pass
 
 
+def leer_sensores_rgb(st_rgb):
+    """Lee el valor actual del sensor según el modo RGB dinámico sin abrir procesos externos."""
+    modo = st_rgb.get("rgb_modo")
+    brillo = st_rgb.get("rgb_brillo", 80)
+    if brillo <= 0 or modo not in ("temp", "bateria", "hora"):
+        return None
+
+    if modo == "hora":
+        import datetime
+        h = datetime.datetime.now().hour
+        franja = "manana" if 6 <= h < 12 else ("tarde" if 12 <= h < 19 else ("noche" if 19 <= h < 23 else "madrugada"))
+        return ("hora", franja, brillo)
+
+    if modo == "bateria":
+        try:
+            with open("/sys/class/power_supply/BAT0/capacity", "r") as f:
+                bat = int(f.read().strip())
+            return ("bateria", bat, brillo)
+        except Exception:
+            return None
+
+    if modo == "temp":
+        try:
+            for hw in os.listdir("/sys/class/hwmon"):
+                name_path = f"/sys/class/hwmon/{hw}/name"
+                temp_path = f"/sys/class/hwmon/{hw}/temp1_input"
+                if os.path.exists(name_path) and os.path.exists(temp_path):
+                    with open(name_path, "r") as fn:
+                        if fn.read().strip() in ("k10temp", "amdgpu"):
+                            with open(temp_path, "r") as ft:
+                                temp_c = int(ft.read().strip()) // 1000
+                            return ("temp", temp_c, brillo)
+        except Exception:
+            return None
+    return None
+
+
+
 async def bucle_principal():
     tareas_activas = {}
-    ciclos_rgb = 0
     entorno_anterior = None
     gamescope_anterior = None
     tarea_vigilante = None
-    gamescope_anterior = None
+    ultimo_estado_rgb = None  # Guarda (modo, valor_disparado, brillo)
 
     while True:
         try:
@@ -1159,19 +1196,33 @@ async def bucle_principal():
             print(f"[ALLY-BRIDGE ERROR] {e}", flush=True)
 
 
-        ciclos_rgb += 1
-        if ciclos_rgb >= 8:
-            ciclos_rgb = 0
-            try:
-                if os.path.exists("/etc/ally-center.json"):
-                    with open("/etc/ally-center.json", "r") as f:
-                        st_rgb = json.load(f)
-                    if st_rgb.get("rgb_modo") in ("temp", "bateria", "hora") and st_rgb.get("rgb_brillo", 80) > 0:
-                        asyncio.create_task(asyncio.to_thread(ejecutar_ally, ["rgb_tick"]))
-            except Exception:
-                pass
+        try:
+            if os.path.exists("/etc/ally-center.json"):
+                with open("/etc/ally-center.json", "r") as f:
+                    st_rgb = json.load(f)
+                lectura = leer_sensores_rgb(st_rgb)
+                if lectura is not None:
+                    modo_rgb, val_actual, brillo_rgb = lectura
+                    debe_disparar = False
+                    if ultimo_estado_rgb is None or ultimo_estado_rgb[0] != modo_rgb or ultimo_estado_rgb[2] != brillo_rgb:
+                        debe_disparar = True
+                    elif modo_rgb == "temp" and abs(val_actual - ultimo_estado_rgb[1]) >= 2:
+                        debe_disparar = True
+                    elif modo_rgb == "bateria" and abs(val_actual - ultimo_estado_rgb[1]) >= 3:
+                        debe_disparar = True
+                    elif modo_rgb == "hora" and val_actual != ultimo_estado_rgb[1]:
+                        debe_disparar = True
 
-        await asyncio.sleep(0.35)
+                    if debe_disparar:
+                        ultimo_estado_rgb = lectura
+                        asyncio.create_task(asyncio.to_thread(ejecutar_ally, ["rgb_tick"]))
+                else:
+                    ultimo_estado_rgb = None
+        except Exception:
+            pass
+
+        await asyncio.sleep(0.35 if entorno_actual == "game" else 1.0)
+
 
 
 
