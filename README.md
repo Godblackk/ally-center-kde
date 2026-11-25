@@ -1,6 +1,10 @@
-# 🎮 Center ROG Ally X — Panel de Control Nativo para KDE Plasma & Steam Modo Juego
+<div align="center">
+  <img src="docs/capturas/logo-ally.png" alt="Center ROG Ally X Logo" width="96" height="96">
+  <h1>⚡ Center ROG Ally / Ally X</h1>
+  <p><strong>Centro de control nativo de TDP, curvas de ventilación e iluminación RGB Aura para ASUS ROG Ally y ROG Ally X en Linux (KDE Plasma 6 + Steam Modo Juego).</strong></p>
+</div>
 
-Un panel de control ligero, moderno y nativo diseñado específicamente para la **ASUS ROG Ally X** en distribuciones Linux con escritorio **KDE Plasma 6** (como CachyOS Handheld Edition, Bazzite o SteamOS).
+---
 
 Inspirado en la comodidad de *Armoury Crate* y *Command Center*, este plasmoid permite gestionar en tiempo real el rendimiento, la refrigeración, el límite de carga de batería y la iluminación RGB directamente desde la bandeja del sistema en el escritorio **y de forma nativa dentro del menú rápido (QAM) de Steam en Modo Juego / Big Picture**, sin depender de Decky Loader.
 
