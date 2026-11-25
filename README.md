@@ -133,7 +133,7 @@ Ambas interfaces (KDE Plasma 6 y Steam Modo Juego) incluyen un interruptor en su
 Clona el repositorio y ejecuta `./install.sh` como tu usuario normal (**sin `sudo`**; el script solicitará permisos cuando configure `systemd` y `sudoers`):
 
 ```bash
-git clone https://github.com
+git clone https://github.com/Godblackk/ally-center-kde.git
 cd ally-center-kde
 chmod +x install.sh uninstall.sh
 ./install.sh
