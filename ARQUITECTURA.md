@@ -1,7 +1,5 @@
 # Arquitectura Técnica - Center ROG Ally (KDE Plasma 6 + Steam Modo Juego)
 
-> **⚠️ EXCLUSIVO PARA ASUS ROG ALLY / ROG ALLY X:** Documentación técnica de archivos, rutas del kernel de Linux y protocolos para **ASUS ROG Ally (RC71L)** y **ROG Ally X (RC72LA)**.
-
 ## 1. Estructura de archivos del proyecto
 
 - **Scripts de instalación/desinstalación**: `install.sh` y `uninstall.sh` gestionan el despliegue del plasmoide, iconos, reglas `sudoers`, integración con Steam CEF y servicios `systemd`.
