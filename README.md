@@ -1,149 +1,85 @@
-<div align="center">
-  <img src="docs/capturas/logo-ally.png" alt="Center ROG Ally X Logo" width="96" height="96">
-  <h1>⚡ Center ROG Ally / Ally X</h1>
-  <p><strong>Centro de control nativo de TDP, curvas de ventilación e iluminación RGB Aura para ASUS ROG Ally y ROG Ally X en Linux (KDE Plasma 6 + Steam Modo Juego).</strong></p>
-</div>
+# 🎮 Center ROG Ally X — Panel de Control Nativo para KDE Plasma & Steam Modo Juego
+
+Un panel de control ligero, moderno y nativo diseñado específicamente para la **ASUS ROG Ally X** en distribuciones Linux con escritorio **KDE Plasma 6** (como CachyOS Handheld Edition, Bazzite o SteamOS).
+
+Inspirado en la comodidad de *Armoury Crate* y *Command Center*, este plasmoid permite gestionar en tiempo real el rendimiento, la refrigeración, el límite de carga de batería y la iluminación RGB directamente desde la bandeja del sistema en el escritorio **y de forma nativa dentro del menú rápido (QAM) de Steam en Modo Juego / Big Picture**, sin depender de Decky Loader.
 
 ---
 
+## ✨ Características Principales
+
+* **🚀 Control Total de TDP y Rendimiento:**
+  * Perfiles de energía nativos del kernel: **Silencioso**, **Equilibrado** y **Rendimiento**.
+  * **Límite TDP Manual (SPL):** Ajuste fino de **7W a 30W** con botones de acceso rápido (`13W`, `17W`, `25W`, `30W`).
+  * **Impulso Dinámico (SPPT / FPPT):** Alterna entre vatios sostenidos constantes o picos temporales de impulso (`35W` / `43W`).
+  * **CPU Boost:** Activa o desactiva el modo turbo del procesador con un clic.
+  * **Cuidado de Batería:** Limita la carga máxima al **80%** o **100%** directamente en el firmware de ASUS para prolongar la vida útil de la batería.
+* **🔄 Sincronización Inteligente de Modos (`Sync ON` vs `Por Modo`):**
+  * **Modo Sincronizado (`Sync ON`):** Mantiene una configuración única en espejo entre el Escritorio de KDE Plasma y el Modo Juego.
+  * **Perfiles Independientes (`Por Modo`):** Guarda y aplica automáticamente configuraciones separadas (TDP, ventiladores, CPU Boost, batería y RGB) para **Escritorio** y **Modo Juego**.
+  * **Protección Activa contra el Sistema (`Anti-Override`):** Detecta cambios de sesión (`Gamescope ↔ KDE Plasma`), arranque de `plasma-powerdevil` y conexiones/desconexiones de corriente (`AC ↔ Batería`), restaurando en < 1.5s el perfil del usuario para evitar que el sistema imponga valores predeterminados.
+* **❄️ Curvas de Ventilación Independientes (CPU y GPU):**
+  * Control granular de **8 puntos de temperatura** (`30°C` a `100°C`) independientes para cada ventilador.
+  * Presets integrados: **Silencioso**, **Equilibrado** y **Turbo**, además de la restauración al modo **Automático** de fábrica.
+  * **Mecanismo Anti-Bucle:** Bloqueo inteligente durante el desplazamiento manual de puntos para evitar saltos o rebote de valores.
+* **🌈 Control Avanzado de Iluminación RGB:**
+  * Selector visual de color con previsualización en tiempo real, brillo ajustable (`0%–100%`) y velocidades (`Lento`, `Medio`, `Rápido`).
+  * Efectos nativos por hardware: **Fijo**, **Respiración**, **Arcoíris** y **Estrobo**.
+  * **Modos Inteligentes por Software:**
+    * *Por Temperatura:* Cambia dinámicamente de verde a rojo según la temperatura del APU.
+    * *Por Batería:* Refleja el nivel de carga restante mediante colores.
+    * *Por Hora del Día:* Adapta la iluminación automáticamente según la franja horaria (mañana, tarde, noche y madrugada).
+* **📊 Telemetría en Tiempo Real:**
+  * Lectura directa desde sensores `hwmon` del kernel: velocidad en **RPM** de ambos ventiladores, temperatura del **APU**, consumo energético instantáneo en **Vatios (W)**, porcentaje de **batería** y estado de carga (`AC`).
+* **🕹️ Integración Nativa en Modo Juego (Sin Decky Loader):**
+  * Se inyecta automáticamente en el menú de acceso rápido (`QuickAccess`) de SteamOS / Big Picture mediante WebSocket CEF, sincronizando controles y estado en tiempo real con el widget de escritorio.
 
 ---
 
-## 🏗️ Arquitectura del Sistema
+## 🏗️ Arquitectura del Proyecto
 
-El proyecto está diseñado bajo una arquitectura desacoplada en **4 capas**, garantizando consumo mínimo de recursos (`< 0.4%` de CPU y `~21 MB` de RAM) y sincronización bidireccional entre el escritorio y el modo consola:
+El sistema funciona de manera desacoplada en cuatro capas para garantizar velocidad y seguridad:
 
-```text
-┌─────────────────────────────────────┐    ┌──────────────────────────────────────────┐
-│        KDE Plasma 6 (QML UI)        │    │     Steam Modo Juego (Quick Access)      │
-│  org.ally.center/contents/ui/main   │    │  Inyección DOM/JS vía Steam CEF (:8080)  │
-└──────────────┬──────────────────────┘    └────────────────────┬─────────────────────┘
-               │ (Lectura 2s / Comandos)                        │ (WebSocket Bidireccional)
-               ▼                                                ▼
-┌──────────────────────────┐               ┌──────────────────────────────────────────┐
-│        estado.sh         │               │          ally_steam_bridge.py            │
-│  Telemetría sysfs/JSON   │               │  Demonio usuario + refresco RGB sensores │
-└──────────────┬───────────┘               └────────────────────┬─────────────────────┘
-               │                                                │
-               └───────────────────────┬────────────────────────┘
-                                       │ sudo (NOPASSWD vía /etc/sudoers.d/ally-center)
-                                       ▼
-                     ┌──────────────────────────────────┐
-                     │          ally_center.py          │
-                     │  Backend CLI & Estado Persistente│
-                     │      (/etc/ally-center.json)     │
-                     └─────────────────┬────────────────┘
-                                       │
-                 ┌─────────────────────┼─────────────────────┐
-                 ▼                     ▼                     ▼
-   ┌──────────────────────────┐ ┌─────────────┐ ┌──────────────────────────┐
-   │   asus-armoury / WMI     │ │   hwmon     │ │   USB HID (/dev/hidraw*) │
-   │ PPT SPL/SPPT/FPPT, Boost │ │ Curvas PWM  │ │ Protocolo Aura MCU LEDs  │
-   └──────────────────────────┘ └─────────────┘ └──────────────────────────┘
-```
+1. **Backend Privilegiado (`ally_center.py`):** Script en Python que interactúa directamente con `/sys/class/firmware-attributes/asus-armoury/` y `/sys/class/leds/ally:rgb:joystick_rings/`. Gestiona la persistencia en `/etc/ally-center.json` y se ejecuta sin contraseña mediante una regla de `sudoers`.
+2. **Monitor de Sensores (`estado.sh`):** Script ultrarrápido en Bash que lee temperaturas, RPM, consumo eléctrico y estado actual del hardware para alimentar la interfaz sin generar sobrecarga de CPU.
+3. **Interfaz Gráfica Escritorio (`main.qml`):** Plasmoid nativo de KDE Plasma 6 construido en QML que reacciona en tiempo real y envía órdenes asíncronas.
+4. **Puente Modo Juego y Vigilante (`ally_steam_bridge.py`):** Demonio en segundo plano (`systemd --user`, ordenado tras `plasma-powerdevil.service`) que se conecta por WebSocket al puerto de depuración CEF de Steam (`127.0.0.1:8080`), inyecta el panel en el menú rápido, detecta transiciones `Gamescope ↔ Plasma` y protege el TDP ante cambios externos de energía.
+---
 
-### Componentes Clave
-1. **`ally_center.py` (Backend Core):** Centraliza toda la lógica de hardware y guarda la configuración activa en `/etc/ally-center.json`. Aplica los valores de potencia PPT (`stapm`, `fast`, `slow`), curvas térmicas de 8 puntos en `hwmon` y tramas binarias HID al controlador Aura de los joysticks.
-2. **`estado.sh` (Recolector de Telemetría):** Script ligero que consulta sensores del kernel (`hwmon`, `BAT0`, `AC0`, RPM de CPU/GPU) y los combina con `/etc/ally-center.json` para alimentar la interfaz QML sin bloquear la UI.
-3. **`main.qml` (Interfaz KDE Plasma 6):** Plasmoide nativo escrito en QML + Kirigami con soporte táctil y de ratón, editor gráfico interactivo de curvas (`Canvas`) e indicador LED animado en vivo.
-4. **`ally_steam_bridge.py` (Puente Nativo Steam CEF):** Servicio `systemd` de usuario que habilita la depuración local oficial de Steam (`.cef-enable-remote-debugging` en `127.0.0.1:8080`), detecta el panel `QuickAccess` vía WebSocket e inyecta la interfaz nativa sincronizada.
+## 📋 Requisitos del Sistema
 
-### Sincronización Bilateral vs. Perfiles por Modo (`🔗 Sync ON` / `🔓 Por Modo`)
-Ambas interfaces (KDE Plasma 6 y Steam Modo Juego) incluyen un interruptor en su barra superior para elegir cómo gestionar los ajustes entre entornos:
-* **`🔗 Sync ON` (Sincronización Bilateral):** Al activarlo, toma como **maestro** el entorno desde donde se pulsa (Escritorio o Modo Juego), copia sus ajustes al otro y mantiene ambos en espejo en tiempo real.
-* **`🔓 Por Modo` (Perfiles Independientes):** Guarda perfiles separados para **Escritorio** y **Modo Juego** (TDP, perfiles de energía, curvas de ventilación, límite de batería e iluminación RGB), aplicándolos automáticamente al cambiar de sesión.
+* **Dispositivo:** ASUS ROG Ally X (con módulo del kernel `asus-armoury` cargado).
+* **Entorno:** KDE Plasma 6 (Wayland o X11).
+* **Dependencias:** `python3`, `python-websockets` (o `python3-websockets`), `bash`, `sudo`, `systemd`.
 
 ---
 
-## 📸 Galería de Capturas
+## 🚀 Instalación
 
-### 🎮 Steam Modo Juego (Quick Access Menu)
+1. Clona este repositorio en tu dispositivo:
+   ```bash
+   git clone https://github.com/Godblackk/ally-center-kde
+   cd ally-center-kde
+   ```
 
-| Control de TDP y Energía | Curva de Ventiladores | Control RGB Aura |
-| :---: | :---: | :---: |
-| ![TDP Manual Modo Juego](docs/capturas/game-tdp-manual.png) | ![Curva Cascada Modo Juego](docs/capturas/game-venti-perso-cascada.png) | ![RGB Fijo Modo Juego](docs/capturas/game-rgb-fijo.png) |
+2. Ejecuta el instalador automático (te pedirá tu contraseña de administrador una única vez para configurar permisos y servicios):
+   ```bash
+   chmod +x install.sh
+   ./install.sh
+   ```
 
-<details>
-<summary><strong>Ver más capturas de Steam Modo Juego (Perfiles, Ventilación Dual/BIOS y Efectos RGB)</strong></summary>
-<br>
-
-| Perfiles de Energía | Desplegable Modos Ventilación | Curva Todos Juntos |
-| :---: | :---: | :---: |
-| ![Perfiles TDP](docs/capturas/game-tdp-perfiles.png) | ![Modos Ventilación](docs/capturas/game-verti-perfiles.png) | ![Curva Todos Juntos](docs/capturas/game-venti-perso-todo.png) |
-
-| Ventilación Automática (BIOS) | Ventilación Manual Unificada | Ventilación Manual Independiente |
-| :---: | :---: | :---: |
-| ![Ventilación BIOS](docs/capturas/game-venti-perfiles-bios.png) | ![Ventilación Única](docs/capturas/game-venti-perfiles-unico.png) | ![Ventilación Dual](docs/capturas/game-venti-perfiles-dual.png) |
-
-| Efectos RGB y Velocidad | Sensores RGB Reactivos |
-| :---: | :---: |
-| ![RGB Efectos](docs/capturas/game-rgb-efecto.png) | ![RGB Sensores](docs/capturas/game-rgb-sensor.png) |
-
-</details>
+3. **Activa el widget en KDE Plasma:**
+   * Haz clic derecho en tu barra de tareas / panel → **Añadir elementos gráficos...**
+   * Busca **"Center ROG Ally X"** y añádelo a tu panel o bandeja del sistema.
 
 ---
 
-### 🖥️ Escritorio KDE Plasma 6
+## 🗑️ Desinstalación
 
-| Control de TDP y Energía | Editor Gráfico de Curva | Control RGB Aura |
-| :---: | :---: | :---: |
-| ![TDP Manual KDE](docs/capturas/kde-tdp-manual.png) | ![Curva Gráfica KDE](docs/capturas/kde-venti-curva.png) | ![RGB Fijo KDE](docs/capturas/kde-rgb-fijo.png) |
-
-<details>
-<summary><strong>Ver más capturas de KDE Plasma 6 (Perfiles, Ventilación y Modos RGB)</strong></summary>
-<br>
-
-| Perfiles de Energía KDE | Curva Deslizadores KDE | Ventilación Automática (BIOS) |
-| :---: | :---: | :---: |
-| ![Perfiles TDP KDE](docs/capturas/kde-tdp-perfiles.png) | ![Deslizadores Curva KDE](docs/capturas/kde-venti-desliz.png) | ![Ventilación BIOS KDE](docs/capturas/kde-venti-bios.png) |
-
-| Ventilación Manual Única | Ventilación Manual Dual | Modos y Sensores RGB |
-| :---: | :---: | :---: |
-| ![Ventilación Única KDE](docs/capturas/kde-venti-perfil-solo.png) | ![Ventilación Dual KDE](docs/capturas/kde-venti-perfil-dual.png) | ![Modos RGB KDE](docs/capturas/kde-rgb-modos.png) |
-
-| Efecto Respiración | Ciclo de Colores | Sensor Temperatura APU |
-| :---: | :---: | :---: |
-| ![RGB Respiración KDE](docs/capturas/kde-rgb-respi.png) | ![RGB Ciclo KDE](docs/capturas/kde-rgb-ciclo.png) | ![RGB Temperatura KDE](docs/capturas/kde-rgb-temp.png) |
-
-</details>
-
----
-
-## 🚀 Instalación y Desinstalación
-
-### Requisitos Previos
-* **Hardware:** ASUS ROG Ally (Z1 / Z1 Extreme) o ROG Ally X.
-* **Sistema Operativo:** Distribución Linux con **KDE Plasma 6** (ej. CachyOS Handheld, Bazzite, SteamOS / Arch Linux) y kernel con soporte `asus-nb-wmi` / `asus-armoury`.
-* **Dependencias:** `python3`, `python-websockets` (instalada automáticamente por el script si falta).
-
-
-### Compatibilidad de Hardware y Sistemas
-
-| Modelo | Estado | Notas |
-| :--- | :---: | :--- |
-| **ROG Ally X (2024)** | ✅ **100% Probado** | TDP, SPPT/FPPT, curvas duales, batería 80%, RGB Aura y Modo Juego. |
-| **ROG Ally Z1 / Z1 Extreme (2023)** | ✅ **Compatible** | Soporte completo de TDP, ventiladores, batería (`BATT`/`BAT0`) y RGB Aura. |
-| **ROG Xbox Ally / Xbox Ally X (2025)** | ⚠️ **Experimental** | Requiere kernel Linux `6.15+` con soporte `asus-armoury` reciente. |
-
-* **Distribuciones soportadas:** CachyOS Handheld, Bazzite-Deck (KDE Plasma), Nobara Handheld (KDE Plasma), Arch / EndeavourOS (KDE Plasma 6) y SteamOS 3 (con `steamos-readonly disable`).
-
-
-
-### Instalación Rápida
-Clona el repositorio y ejecuta `./install.sh` como tu usuario normal (**sin `sudo`**; el script solicitará permisos cuando configure `systemd` y `sudoers`):
+Si deseas eliminar el plasmoid, los servicios en segundo plano, las reglas de `sudoers` y los archivos de configuración:
 
 ```bash
-git clone https://github.com/Godblackk/ally-center-kde.git
-cd ally-center-kde
-chmod +x install.sh uninstall.sh
-./install.sh
-```
-
-Luego haz clic derecho en el panel de KDE Plasma → **Añadir o gestionar widgets** → busca **Center ROG Ally** y fíjalo en tu barra de tareas. En **Steam Modo Juego**, aparecerá automáticamente al final del menú rápido (`...`).
-
-### Desinstalación Limpia
-Para eliminar por completo el widget, los servicios `systemd`, las reglas `sudoers` y el icono del sistema:
-
-```bash
+chmod +x uninstall.sh
 ./uninstall.sh
 ```
+
