@@ -48,6 +48,11 @@ El proyecto está diseñado bajo una arquitectura desacoplada en **4 capas**, ga
 3. **`main.qml` (Interfaz KDE Plasma 6):** Plasmoide nativo escrito en QML + Kirigami con soporte táctil y de ratón, editor gráfico interactivo de curvas (`Canvas`) e indicador LED animado en vivo.
 4. **`ally_steam_bridge.py` (Puente Nativo Steam CEF):** Servicio `systemd` de usuario que habilita la depuración local oficial de Steam (`.cef-enable-remote-debugging` en `127.0.0.1:8080`), detecta el panel `QuickAccess` vía WebSocket e inyecta la interfaz nativa sincronizada.
 
+### Sincronización Bilateral vs. Perfiles por Modo (`🔗 Sync ON` / `🔓 Por Modo`)
+Ambas interfaces (KDE Plasma 6 y Steam Modo Juego) incluyen un interruptor en su barra superior para elegir cómo gestionar los ajustes entre entornos:
+* **`🔗 Sync ON` (Sincronización Bilateral):** Al activarlo, toma como **maestro** el entorno desde donde se pulsa (Escritorio o Modo Juego), copia sus ajustes al otro y mantiene ambos en espejo en tiempo real.
+* **`🔓 Por Modo` (Perfiles Independientes):** Guarda perfiles separados para **Escritorio** y **Modo Juego** (TDP, perfiles de energía, curvas de ventilación, límite de batería e iluminación RGB), aplicándolos automáticamente al cambiar de sesión.
+
 ---
 
 ## 📸 Galería de Capturas

@@ -48,6 +48,10 @@
 | `guardar_curva` | `v1,v2,...,v8` | Almacena y aplica una curva de ventilación personalizada de 8 puntos en el firmware. |
 | `rgb` / `rgb_live` / `rgb_tick` | `modo r g b brillo velocidad` | Gestiona los efectos e iluminación LED (estáticos, efectos con velocidad e indicadores dinámicos con histéresis de 2 °C en temperatura y prioridad verde con cargador AC). |
 | `boot` | *(ninguno)* | Empleado por `systemd` durante el arranque para restaurar la última configuración guardada. |
+| `--modo` *(flag global)* | `desktop` o `game` | Indica a `ally_center.py` en qué perfil (`perfiles_modo`) debe leer o guardar cuando `sync_modos` está desactivado (por defecto `desktop`). |
+| `sync_modos` | `0` o `1` | Alterna `sync_modos` en `/etc/ally-center.json`. Al activarse (`1`), clona el perfil del `--modo` origen sobre el modo destino y lo aplica al hardware. |
+| `aplicar_modo` | `desktop` o `game` | Si `sync_modos` es `false`, aplica al hardware la configuración guardada en `perfiles_modo[<modo>]` al detectar cambio de sesión. |
+
 
 ## 4. Integración con Steam Modo Juego y Sincronización Bidireccional (`ally_steam_bridge.py`)
 
@@ -60,4 +64,7 @@ El sistema se integra de forma nativa con **Gamescope / Steam GamepadUI** median
   - **TDP:** Permite alternar perfiles de energía, ajustar el vataje mediante barra deslizante (`7W–30W`) y modificar parámetros de impulso (`CPU Boost` y `SPPT/FPPT`).
   - **Ventiladores:** Ofrece modos automático (BIOS), manual con perfiles predefinidos o personalización mediante curva de 8 puntos.
   - **RGB:** Controla patrones lumínicos, selección rápida de colores y niveles de brillo.
-- **Sincronización:** Emplea `/etc/ally-center.json` como repositorio central compartido con KDE Plasma (`main.qml`), integrando un sistema de protección anti-rebote (`2.5 s`) durante el ajuste táctil.
+- **Sincronización Bilateral y Perfiles por Modo:** Emplea `/etc/ally-center.json` como repositorio central con el flag `sync_modos` y dos perfiles aislados (`perfiles_modo.desktop` y `perfiles_modo.game`):
+  - **Con `sync_modos = true` (`🔗 Sync ON`):** Cualquier cambio actualiza ambos perfiles en espejo. Al pasar de `false` a `true`, el entorno desde donde se activa actúa como maestro y sobrescribe al otro.
+  - **Con `sync_modos = false` (`🔓 Por Modo`):** `ally_steam_bridge.py` detecta en segundo plano la presencia de `gamescope` / `gamepadui` y ejecuta `aplicar_modo` al alternar entre Escritorio y Modo Juego, mientras `main.qml` resuelve `perfiles_modo.desktop` directamente en memoria sobre la salida de `estado.sh` sin abrir subprocesos adicionales.
+
