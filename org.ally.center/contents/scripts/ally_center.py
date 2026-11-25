@@ -561,6 +561,7 @@ if __name__ == "__main__":
         sys.exit(0)
     elif comando == "aplicar_modo" and args:
         objetivo = "game" if args.pop(0) == "game" else "desktop"
+        MODO_ACTUAL = objetivo
         est = cargar_estado_sistema()
         if not est.get("sync_modos", True):
             p = est["perfiles_modo"].get(objetivo, {})
@@ -568,9 +569,8 @@ if __name__ == "__main__":
                 est.update(p)
                 with open(CONFIG_SISTEMA, "w") as f:
                     json.dump(est, f, indent=2)
-                restaurar_boot()
+        restaurar_boot()
         sys.exit(0)
-
     elif comando == "perfil" and args:
         ajustar_perfil(args.pop(0))
         sys.exit(0)

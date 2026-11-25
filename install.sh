@@ -75,7 +75,8 @@ mkdir -p "$HOME/.config/systemd/user"
 cat > "$HOME/.config/systemd/user/ally-steam-bridge.service" << EOF
 [Unit]
 Description=Center ROG Ally X - Puente Modo Juego (Steam CEF)
-After=graphical-session.target
+After=plasma-powerdevil.service graphical-session.target
+Wants=plasma-powerdevil.service
 
 [Service]
 Type=simple

@@ -137,6 +137,7 @@ PlasmoidItem {
 
     // Al arrancar el escritorio o reiniciar Plasma: carga la curva y la aplica
     Component.onCompleted: {
+        ejecutarComando("aplicar_modo desktop")
         ejecutarComando("estado")
 
     }

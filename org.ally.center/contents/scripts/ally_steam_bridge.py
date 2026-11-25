@@ -1053,10 +1053,62 @@ async def manejar_target(ws_url):
         pass
 
 
+
+async def vigilar_perfil_activo(modo):
+    """Intercepta cambios externos (PowerDevil, enchufar/desenchufar AC, etc.) en ambos modos y restaura la config del usuario."""
+    ruta_spl = "/sys/class/firmware-attributes/asus-armoury/attributes/ppt_pl1_spl/current_value"
+    ruta_acpi = "/sys/firmware/acpi/platform_profile"
+    mapa_acpi = {0: "quiet", 1: "balanced", 2: "performance"}
+
+    while True:
+        await asyncio.sleep(1.5)
+        try:
+            if not os.path.exists("/etc/ally-center.json"):
+                continue
+            with open("/etc/ally-center.json", "r") as f:
+                est = json.load(f)
+
+            # Lee la configuración correspondiente (Sync ON vs Por Modo)
+            if est.get("sync_modos", True):
+                cfg = est
+            else:
+                cfg = est.get("perfiles_modo", {}).get(modo, {})
+
+            necesita_restaurar = False
+
+            # Caso A: TDP Manual activo
+            if cfg.get("tdp_manual") and os.path.exists(ruta_spl):
+                tdp_esperado = int(cfg.get("tdp", 15))
+                with open(ruta_spl, "r") as f:
+                    tdp_kernel = int(f.read().strip())
+                if tdp_kernel != tdp_esperado:
+                    necesita_restaurar = True
+
+            # Caso B: Perfil fijo (Silencioso / Equilibrado / Turbo)
+            elif not cfg.get("tdp_manual") and os.path.exists(ruta_acpi):
+                perfil_esperado = mapa_acpi.get(int(cfg.get("perfil", 1)), "balanced")
+                with open(ruta_acpi, "r") as f:
+                    perfil_kernel = f.read().strip()
+                if perfil_kernel != perfil_esperado:
+                    necesita_restaurar = True
+
+            if necesita_restaurar:
+                await asyncio.to_thread(ejecutar_ally, ["aplicar_modo", modo], modo)
+
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
+
+
 async def bucle_principal():
     tareas_activas = {}
     ciclos_rgb = 0
     entorno_anterior = None
+    gamescope_anterior = None
+    tarea_vigilante = None
+    gamescope_anterior = None
+
     while True:
         try:
             targets = await asyncio.to_thread(obtener_targets)
@@ -1069,16 +1121,43 @@ async def bucle_principal():
                     if url not in tareas_activas:
                         tareas_activas.update({url: asyncio.create_task(manejar_target(url))})
 
-            entorno_actual = "game" if urls_actuales else "desktop"
-            if entorno_actual != entorno_anterior:
+            # Detecta si el proceso gamescope está activo en este momento
+            gamescope_actual = False
+            for p in os.listdir("/proc"):
+                if p.isdigit():
+                    try:
+                        with open(f"/proc/{p}/comm", "r") as f:
+                            if f.read().strip() == "gamescope":
+                                gamescope_actual = True
+                                break
+                    except Exception:
+                        pass
+
+            entorno_actual = "game" if (urls_actuales or gamescope_actual) else "desktop"
+
+            # Se dispara si cambió el entorno O si acaba de cerrarse la sesión de gamescope
+            if entorno_actual != entorno_anterior or (gamescope_anterior is True and not gamescope_actual):
                 entorno_anterior = entorno_actual
+                gamescope_anterior = gamescope_actual
+
+                if tarea_vigilante and not tarea_vigilante.done():
+                    tarea_vigilante.cancel()
+
+                if entorno_actual == "desktop":
+                    await asyncio.sleep(1.0)
                 await asyncio.to_thread(ejecutar_ally, ["aplicar_modo", entorno_actual], entorno_actual)
+                tarea_vigilante = asyncio.create_task(vigilar_perfil_activo(entorno_actual))
+            else:
+                gamescope_anterior = gamescope_actual
+
 
             for url in list(tareas_activas.keys()):
                 if url not in urls_actuales or tareas_activas.get(url).done():
                     tareas_activas.pop(url, None)
-        except Exception:
-            pass
+
+        except Exception as e:
+            print(f"[ALLY-BRIDGE ERROR] {e}", flush=True)
+
 
         ciclos_rgb += 1
         if ciclos_rgb >= 8:
@@ -1093,6 +1172,7 @@ async def bucle_principal():
                 pass
 
         await asyncio.sleep(0.35)
+
 
 
 if __name__ == "__main__":
