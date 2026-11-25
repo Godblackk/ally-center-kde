@@ -22,6 +22,8 @@ PlasmoidItem {
     property string apuWatts: "0.0"
     property int ultimoPctCurva: -1
     property bool bloqueadoSync: false
+    property bool syncModos: true
+
     Timer {
         id: timerBloqueo
         interval: 3000
@@ -147,6 +149,9 @@ PlasmoidItem {
             if (sourceName.indexOf("estado") !== -1 && data.stdout) {
                 try {
                     let info = JSON.parse(data.stdout)
+                    if (info.sync_modos === false && info.perfiles_modo && info.perfiles_modo.desktop) {
+                        Object.assign(info, info.perfiles_modo.desktop)
+                    }
                     if (info.modelo) root.tituloConsola = info.modelo
                         root.cpuRpm = info.cpu_rpm || 0
                         root.gpuRpm = info.gpu_rpm || 0
@@ -159,14 +164,17 @@ PlasmoidItem {
                             if (info.tdp !== undefined) root.tdpWatts = info.tdp
                             if (info.tdp_manual !== undefined) root.tdpManual = info.tdp_manual
                             if (info.perfil !== undefined) {
-                                if ((root.ultimoPerfilKernel !== -1 && info.perfil !== root.ultimoPerfilKernel) || (root.tdpManual && info.perfil !== 2)) {
+                                var pSys = parseInt(info.perfil)
+                                var pUi = pSys
+                                if ((root.ultimoPerfilKernel !== -1 && pUi !== root.ultimoPerfilKernel) || (root.tdpManual && pSys !== 2)) {
                                     root.tdpManual = false
                                     root.tdpBoost = false
-                                    ejecutarComando("perfil " + info.perfil)
+                                    ejecutarComando("perfil " + pSys)
                                 }
-                                root.ultimoPerfilKernel = info.perfil
-                                root.perfilEnergia = info.perfil
+                                root.ultimoPerfilKernel = pUi
+                                root.perfilEnergia = pUi
                             }
+
                             if (!root.tdpManual) root.tdpWatts = (root.perfilEnergia === 0) ? 13 : (root.perfilEnergia === 1 ? 17 : (root.acConectado ? 30 : 25))
                             if (info.tdp_boost !== undefined) root.tdpBoost = info.tdp_boost
                             if (info.boost !== undefined) root.cpuBoost = info.boost
@@ -188,7 +196,7 @@ PlasmoidItem {
                             }
                             if (info.rgb_brillo !== undefined) root.rgbBrillo = info.rgb_brillo
                             if (info.rgb_vel !== undefined) root.rgbVel = info.rgb_vel
-
+                            if (info.sync_modos !== undefined) root.syncModos = info.sync_modos
 
                         }
 
@@ -301,6 +309,31 @@ PlasmoidItem {
                     font.pointSize: 10
                     font.bold: true
                     Layout.fillWidth: true
+                }
+                Rectangle {
+                    radius: 5
+                    implicitWidth: lblSyncModos.implicitWidth + 14
+                    implicitHeight: 20
+                    color: root.syncModos ? Qt.rgba(102/255, 192/255, 244/255, 0.18) : Qt.rgba(245/255, 176/255, 65/255, 0.18)
+                    border.color: root.syncModos ? "#66c0f4" : "#f5b041"
+                    border.width: 1
+                    PlasmaComponents.Label {
+                        id: lblSyncModos
+                        anchors.centerIn: parent
+                        text: root.syncModos ? "🔗 Sync ON" : "🔓 Por Modo"
+                        font.pointSize: 7.5
+                        font.bold: true
+                        color: root.syncModos ? "#66c0f4" : "#f5b041"
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.syncModos = !root.syncModos
+                            pausarSync()
+                            ejecutarComando("sync_modos " + (root.syncModos ? "1" : "0"))
+                        }
+                    }
                 }
                 PlasmaComponents.ToolButton {
                     icon.name: "window-pin"
@@ -475,8 +508,13 @@ PlasmoidItem {
                     checked: root.tdpManual
                     onToggled: {
                         root.tdpManual = checked
+                        pausarSync()
                         guardarConfig()
-                        aplicarTodoEnergia()
+                        if (checked) {
+                            root.aplicarTodoEnergia()
+                        } else {
+                            ejecutarComando("perfil " + root.perfilEnergia)
+                        }
                     }
                 }
 
@@ -508,7 +546,7 @@ PlasmoidItem {
                         }
                         onPressedChanged: if (!pressed) {
                             timerRgbLive.stop()
-                            root.aplicarRgb()
+                            root.aplicarTodoEnergia()
                         }
                     }
                     RowLayout {

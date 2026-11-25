@@ -105,32 +105,17 @@ def leer_estado():
 
     if os.path.exists(CONFIG_SISTEMA):
         try:
-            with open(CONFIG_SISTEMA, "r") as f:
-                cfg = json.load(f)
-                if "curva" in cfg:
-                    datos["curva"] = cfg["curva"]
-                if "modo_fan" in cfg:
-                    datos["modo_fan"] = cfg["modo_fan"]
-                if "tdp_manual" in cfg:
-                    datos["tdp_manual"] = cfg["tdp_manual"]
-                if "tdp_boost" in cfg:
-                    datos["tdp_boost"] = cfg["tdp_boost"]
-                if "boost" in cfg:
-                    datos["boost"] = cfg["boost"]
-                if "bateria_80" in cfg:
-                    datos["bateria_80"] = cfg["bateria_80"]
-                if "rgb_modo" in cfg:
-                    datos["rgb_modo"] = cfg["rgb_modo"]
-                if "rgb" in cfg:
-                    datos["rgb"] = cfg["rgb"]
-                if "rgb_brillo" in cfg:
-                    datos["rgb_brillo"] = cfg["rgb_brillo"]
-                if "rgb_vel" in cfg:
-                    datos["rgb_vel"] = cfg["rgb_vel"]
-
-
+            cfg = cargar_estado_sistema()
+            sync = cfg.get("sync_modos", True)
+            datos["sync_modos"] = sync
+            fuente = cfg if sync else cfg["perfiles_modo"]["desktop"]
+            for k in ("curva", "modo_fan", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost", "bateria_80", "rgb_modo", "rgb", "rgb_brillo", "rgb_vel", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"):
+                if k in fuente:
+                    datos[k] = fuente[k]
         except Exception:
             pass
+
+
 
 
     print(json.dumps(datos))
@@ -282,8 +267,15 @@ def ajustar_perfil(indice):
 
 
 CONFIG_SISTEMA = "/etc/ally-center.json"
+MODO_ACTUAL = "desktop"
+CLAVES_PERFIL = (
+    "curva", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost",
+    "bateria_80", "rgb_modo", "rgb", "rgb_brillo", "rgb_vel",
+    "modo_fan", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"
+)
 
-def guardar_estado_sistema(clave, valor):
+
+def cargar_estado_sistema():
     estado = {}
     if os.path.exists(CONFIG_SISTEMA):
         try:
@@ -291,12 +283,37 @@ def guardar_estado_sistema(clave, valor):
                 estado = json.load(f)
         except Exception:
             estado = {}
-    estado[clave] = valor
+    estado.setdefault("sync_modos", True)
+    if not isinstance(estado.get("perfiles_modo"), dict):
+        base = {k: estado[k] for k in CLAVES_PERFIL if k in estado}
+        estado["perfiles_modo"] = {"desktop": dict(base), "game": dict(base)}
+    for m in ("desktop", "game"):
+        if not isinstance(estado["perfiles_modo"].get(m), dict):
+            estado["perfiles_modo"][m] = {k: estado[k] for k in CLAVES_PERFIL if k in estado}
+    return estado
+
+
+def guardar_estado_sistema(clave, valor):
+    estado = cargar_estado_sistema()
+    perfiles = estado["perfiles_modo"]
+    if estado.get("sync_modos", True):
+        estado[clave] = valor
+        if clave in CLAVES_PERFIL:
+            perfiles["desktop"][clave] = valor
+            perfiles["game"][clave] = valor
+    else:
+        t = "game" if MODO_ACTUAL == "game" else "desktop"
+        if clave in CLAVES_PERFIL:
+            perfiles[t][clave] = valor
+        else:
+            estado[clave] = valor
+
     try:
         with open(CONFIG_SISTEMA, "w") as f:
             json.dump(estado, f, indent=2)
     except Exception:
         pass
+
 
 
 LED_RGB_DIR = "/sys/class/leds/ally:rgb:joystick_rings"
@@ -504,13 +521,14 @@ def restaurar_boot():
         escribir_led_rgb(rc, gc, bc, brillo_rgb if activo_rgb else 0, modo_hw=MODOS_HW_AURA.get(modo_rgb, 0x00), vel=vel_rgb)
 
 
-
-
-
-
 if __name__ == "__main__":
     args = list(sys.argv)
     args.pop(0)
+    if "--modo" in args:
+        idx = args.index("--modo")
+        if idx + 1 < len(args):
+            MODO_ACTUAL = "game" if args[idx + 1] == "game" else "desktop"
+            del args[idx:idx + 2]
     if not args:
         sys.exit(1)
 
@@ -520,10 +538,39 @@ if __name__ == "__main__":
         lock_fd = open("/tmp/ally_center.lock", "w")
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
-
     if comando == "estado":
         leer_estado()
         sys.exit(0)
+    elif comando == "sync_modos" and args:
+        activo = args.pop(0) == "1"
+        est = cargar_estado_sistema()
+        est["sync_modos"] = activo
+        if activo:
+            origen = MODO_ACTUAL
+            destino = "desktop" if origen == "game" else "game"
+            maestro = dict(est["perfiles_modo"].get(origen, {}))
+            if not maestro:
+                maestro = {k: est[k] for k in CLAVES_PERFIL if k in est}
+            est["perfiles_modo"][origen] = dict(maestro)
+            est["perfiles_modo"][destino] = dict(maestro)
+            est.update(maestro)
+        with open(CONFIG_SISTEMA, "w") as f:
+            json.dump(est, f, indent=2)
+        if activo:
+            restaurar_boot()
+        sys.exit(0)
+    elif comando == "aplicar_modo" and args:
+        objetivo = "game" if args.pop(0) == "game" else "desktop"
+        est = cargar_estado_sistema()
+        if not est.get("sync_modos", True):
+            p = est["perfiles_modo"].get(objetivo, {})
+            if p:
+                est.update(p)
+                with open(CONFIG_SISTEMA, "w") as f:
+                    json.dump(est, f, indent=2)
+                restaurar_boot()
+        sys.exit(0)
+
     elif comando == "perfil" and args:
         ajustar_perfil(args.pop(0))
         sys.exit(0)
@@ -553,25 +600,22 @@ if __name__ == "__main__":
         escribir_led_rgb(rc, gc, bc, int(br_s), guardar_mcu=False, modo_hw=MODOS_HW_AURA.get(m_rgb, 0x00), vel=vel_live)
         sys.exit(0)
     elif comando == "rgb_tick":
-        if os.path.exists(CONFIG_SISTEMA):
-            try:
-                with open(CONFIG_SISTEMA, "r") as f:
-                    st = json.load(f)
-                m = st.get("rgb_modo", "fijo")
-                br = st.get("rgb_brillo", 80)
-                if m in ("temp", "bateria", "hora") and br > 0:
-                    rgb_base = st.get("rgb", (0, 210, 255))
-                    rc, gc, bc = calcular_color_dinamico(m, *rgb_base)
-                    cache_file = "/tmp/ally_rgb_cache"
-                    firma = f"{rc},{gc},{bc},{br}"
-                    prev = open(cache_file).read().strip() if os.path.exists(cache_file) else ""
-                    if firma != prev:
-                        escribir_led_rgb(rc, gc, bc, br, guardar_mcu=False)
-                        with open(cache_file, "w") as cf:
-                            cf.write(firma)
-            except Exception:
-                pass
+        est = cargar_estado_sistema()
+        st = est if est.get("sync_modos", True) else est["perfiles_modo"].get(MODO_ACTUAL, est)
+        m = st.get("rgb_modo", "fijo")
+        br = st.get("rgb_brillo", 80)
+        if m in ("bateria", "temperatura", "hora") and br > 0:
+            rgb_base = st.get("rgb", [0, 210, 255])
+            rc, gc, bc = calcular_color_dinamico(m, rgb_base)
+            cache_file = "/tmp/ally_rgb_tick_cache"
+            firma = f"{rc},{gc},{bc},{br}"
+            prev = open(cache_file).read().strip() if os.path.exists(cache_file) else ""
+            if firma != prev:
+                escribir_led_rgb(rc, gc, bc, br, guardar_eca=False)
+                with open(cache_file, "w") as cf:
+                    cf.write(firma)
         sys.exit(0)
+
     elif comando == "guardar_curva" and args:
         puntos = [int(x) for x in args.pop(0).split(",")]
         if len(puntos) == 8:

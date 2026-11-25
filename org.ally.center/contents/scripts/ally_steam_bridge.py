@@ -19,8 +19,8 @@ def obtener_targets():
         return []
 
 
-def ejecutar_ally(args):
-    cmd = ["sudo", "/usr/bin/python3", SCRIPT_ALLY] + args
+def ejecutar_ally(args, modo="game"):
+    cmd = ["sudo", "/usr/bin/python3", SCRIPT_ALLY, "--modo", modo] + args
     subprocess.run(cmd, capture_output=True, text=True)
 
 
@@ -30,12 +30,15 @@ def leer_estado_str():
     try:
         with open("/etc/ally-center.json", "r") as f:
             cfg = json.load(f)
-            for k in ("curva", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost", "bateria_80", "rgb_modo", "rgb", "rgb_brillo","rgb_vel", "modo_fan", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"):
-                if k in cfg:
-                    datos[k] = cfg[k]
+            fuente = cfg if cfg.get("sync_modos", True) else cfg.get("perfiles_modo", {}).get("game", cfg)
+            datos["sync_modos"] = cfg.get("sync_modos", True)
+            for k in ("curva", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost", "bateria_80", "rgb_modo", "rgb", "rgb_brillo", "rgb_vel", "modo_fan", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"):
+                if k in fuente:
+                    datos[k] = fuente[k]
     except Exception:
         pass
     return json.dumps(datos)
+
 
 
 JS_INJECT = """
@@ -49,6 +52,7 @@ JS_INJECT = """
 
     let estado = {
         modelo: "Center ROG Ally X",
+        sync_modos: true,
         perfil: 2,
         tdp_manual: false,
         tdp: 30,
@@ -122,10 +126,17 @@ JS_INJECT = """
                 }
             </style>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span id="ally-tel-modelo" style="font-weight: 700; font-size: 13px; color: #66c0f4;">⚡ ${estado.modelo}</span>
-                <span id="ally-tel-ac" style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 5px; background: rgba(88, 214, 141, 0.18); border: 1px solid #58d68d; color: #58d68d; letter-spacing: 0.4px;">🔌 AC · 80%</span>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 6px;">
+                    <button id="ally-btn-sync-modos" style="font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 5px; cursor: pointer; border: 1px solid #66c0f4; background: rgba(102, 192, 244, 0.18); color: #66c0f4;">🔗 Sync ON</button>
+                    <span id="ally-tel-ac" style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 5px; background: rgba(88, 214, 141, 0.18); border: 1px solid #58d68d; color: #58d68d; letter-spacing: 0.4px;">🔌 AC · 80%</span>
+                </div>
+                <div style="background: #1b2838; border-radius: 6px; padding: 6px 10px; display: flex; align-items: center;">
+                    <span id="ally-tel-modelo" style="font-weight: 700; font-size: 13px; color: #66c0f4;">⚡ ${estado.modelo}</span>
+                </div>
             </div>
+
+
 
             <div style="background: #1b2838; border-radius: 6px; padding: 7px 6px; margin-bottom: 10px;">
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center;">
@@ -670,6 +681,12 @@ JS_INJECT = """
             aplicarRgb();
         };
 
+        box.querySelector("#ally-btn-sync-modos").onclick = () => {
+            estado.sync_modos = !(estado.sync_modos !== false);
+            actualizarUI();
+            enviarComando({ cmd: "sync_modos", val: estado.sync_modos ? "1" : "0" });
+        };
+
         return box;
 
     }
@@ -678,6 +695,14 @@ JS_INJECT = """
         if (!sec) return;
 
         sec.querySelector("#ally-tel-modelo").textContent = `⚡ ${estado.modelo || "Center ROG Ally X"}`;
+        const btnSync = sec.querySelector("#ally-btn-sync-modos");
+        if (btnSync) {
+            const sOn = estado.sync_modos !== false;
+            btnSync.textContent = sOn ? "🔗 Sync ON" : "🔓 Por Modo";
+            btnSync.style.borderColor = sOn ? "#66c0f4" : "#f5b041";
+            btnSync.style.background = sOn ? "rgba(102, 192, 244, 0.18)" : "rgba(245, 176, 65, 0.16)";
+            btnSync.style.color = sOn ? "#66c0f4" : "#f5b041";
+        }
         sec.querySelector("#ally-tel-ac").textContent = estado.ac_conectado ? "AC" : "BAT";
         sec.querySelector("#ally-tel-temp").textContent = `${estado.temp ?? "--"} °C`;
         sec.querySelector("#ally-tel-watts").textContent = `${estado.watts ?? "--"} W`;
@@ -1021,7 +1046,8 @@ async def manejar_target(ws_url):
                         br = str(int(payload.get("brillo", 80)))
                         vel = str(int(payload.get("vel", 2)))
                         ejecutar_ally(list(("rgb", modo, r, g, b, br, "1", vel)))
-
+                    elif cmd == "sync_modos":
+                        ejecutar_ally(["sync_modos", str(payload.get("val", "1"))], modo="game")
 
     except Exception:
         pass
@@ -1030,6 +1056,7 @@ async def manejar_target(ws_url):
 async def bucle_principal():
     tareas_activas = {}
     ciclos_rgb = 0
+    entorno_anterior = None
     while True:
         try:
             targets = await asyncio.to_thread(obtener_targets)
@@ -1041,6 +1068,11 @@ async def bucle_principal():
                     urls_actuales.add(url)
                     if url not in tareas_activas:
                         tareas_activas.update({url: asyncio.create_task(manejar_target(url))})
+
+            entorno_actual = "game" if urls_actuales else "desktop"
+            if entorno_actual != entorno_anterior:
+                entorno_anterior = entorno_actual
+                await asyncio.to_thread(ejecutar_ally, ["aplicar_modo", entorno_actual], entorno_actual)
 
             for url in list(tareas_activas.keys()):
                 if url not in urls_actuales or tareas_activas.get(url).done():
