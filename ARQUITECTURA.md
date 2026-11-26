@@ -16,7 +16,8 @@ ally-center-kde/
     ├── metadata.json                               # Metadatos del plasmoid de KDE Plasma 6
     └── contents/
         ├── ui/
-        │   └── main.qml                            # Interfaz gráfica nativa de KDE Plasma 6 (QML)
+        │   ├── main.qml                            # Interfaz gráfica nativa de KDE Plasma 6 (QML)
+        │   └── i18n.js                             # Diccionario multi-idioma compartido (ES, EN, PT, FR, DE, JA, ZH)
         └── scripts/
             ├── ally_center.py                      # Backend privilegiado (escritura en sysfs y persistencia JSON)
             ├── estado.sh                           # Monitor rápido de sensores hwmon y estado actual
@@ -49,7 +50,7 @@ El backend (`ally_center.py`) y el monitor (`estado.sh`) interactúan directamen
    * Cuando `sync_modos` es `true` (**Sync ON**), cualquier cambio en escritorio o en juego actualiza ambos perfiles en espejo. Cuando es `false` (**Por Modo**), cada entorno lee y guarda su propia configuración independiente.
 
 2. **Detección Dual de Entorno (`ally_steam_bridge.py`):**
-   * El demonio `systemd --user` consulta periódicamente el endpoint CEF de Steam (`http://127.0.0`) buscando el target `QuickAccess` (Big Picture / QAM) **y** verifica la presencia del proceso `gamescope` en `/proc`.
+   * El demonio `systemd --user` consulta periódicamente el endpoint CEF de Steam (`http://127.0.0.1:8080/json`) buscando el target `QuickAccess` (Big Picture / QAM) **y** verifica la presencia del proceso `gamescope` en `/proc`.
    * Esto evita falsos positivos al regresar de **Modo Juego (Gamescope) → Escritorio (Plasma)**, donde Steam permanece corriendo en segundo plano (`-silent`) para gestionar *Steam Input* sin interfaz Big Picture activa.
 
 3. **Vigilante de Integridad y Orden de Arranque (`vigilar_perfil_activo`):**

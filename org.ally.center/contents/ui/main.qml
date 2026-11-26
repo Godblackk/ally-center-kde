@@ -5,10 +5,15 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.kirigami as Kirigami
+import "i18n.js" as I18n
+
 
 PlasmoidItem {
     id: root
+    readonly property string lang: I18n.detectarIdioma(Qt.locale().name)
+    function t(clave) { return I18n.tr(lang, clave) }
     onExpandedChanged: if (expanded) ejecutarComando("estado")
+
 
     //lee los valores de tdp y energia guardados por KDE Plasma al iniciar
     property string tituloConsola: "Center ROG Ally X"
@@ -321,7 +326,7 @@ PlasmoidItem {
                     PlasmaComponents.Label {
                         id: lblSyncModos
                         anchors.centerIn: parent
-                        text: root.syncModos ? "🔗 Sync ON" : "🔓 Por Modo"
+                        text: root.syncModos ? t("sync_on") : t("per_mode")
                         font.pointSize: 7.5
                         font.bold: true
                         color: root.syncModos ? "#66c0f4" : "#f5b041"
@@ -394,7 +399,7 @@ PlasmoidItem {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 0
-                    PlasmaComponents.Label { text: "Consumo"; opacity: 0.6; font.pointSize: 8 }
+                    PlasmaComponents.Label { text: t("consumption"); opacity: 0.6; font.pointSize: 8 }
                     PlasmaComponents.Label { text: root.apuWatts + " W"; font.pointSize: 8.5; font.bold: true }
                 }
 
@@ -406,8 +411,8 @@ PlasmoidItem {
                 PlasmaComponents.Label {
                     property real wBatNum: parseFloat(root.batWatts) || 0
                     text: root.acConectado
-                    ? (wBatNum < 0.5 ? ("🔋 Batería: " + (root.cuidadoBateria ? "Límite 80%" : "Completa")) : ("⚡ Cargando: +" + root.batWatts + " W"))
-                    : ("🔋 Consumo: " + root.batWatts + " W")
+                    ? (wBatNum < 0.5 ? ("🔋 " + t("battery") + ": " + (root.cuidadoBateria ? t("limit_80") : t("full"))) : ("⚡ " + t("charging") + ": " + root.batWatts + " W"))
+                    : ("🔋 " + t("consumption") + ": " + root.batWatts + " W")
                     font.pointSize: 8
                     opacity: 0.85
                     Layout.fillWidth: true
@@ -415,8 +420,8 @@ PlasmoidItem {
                 PlasmaComponents.Label {
                     property real wBatNum: parseFloat(root.batWatts) || 0
                     text: root.acConectado
-                    ? ("Estado: " + (wBatNum < 0.5 ? "En reposo" : "En carga"))
-                    : ("Restante: " + root.batTiempo)
+                    ? ("🔌 " + t("status") + ": " + (wBatNum < 0.5 ? t("idle") : t("in_charge")))
+                    : ("⏳ " + t("remaining") + ": " + root.batTiempo)
                     font.pointSize: 8
                     font.bold: true
                     color: "#3daee9"
@@ -430,7 +435,7 @@ PlasmoidItem {
                 spacing: 4
 
                 PlasmaComponents.Button {
-                    text: "TDP"
+                    text: t("tab_tdp")
                     icon.name: "speedometer"
                     font.pointSize: 8
                     Layout.fillWidth: true
@@ -441,7 +446,7 @@ PlasmoidItem {
                     }
                 }
                 PlasmaComponents.Button {
-                    text: "Ventiladores"
+                    text: t("tab_fans")
                     icon.source: Qt.resolvedUrl("../icons/fan.svg")
                     font.pointSize: 8
                     Layout.fillWidth: true
@@ -453,7 +458,7 @@ PlasmoidItem {
                     }
                 }
                 PlasmaComponents.Button {
-                    text: "RGB"
+                    text: t("tab_rgb")
                     icon.name: "color-management"
                     font.pointSize: 8
                     Layout.fillWidth: true
@@ -482,11 +487,11 @@ PlasmoidItem {
                     Layout.fillWidth: true
                     enabled: !root.tdpManual
                     opacity: !root.tdpManual ? 1.0 : 0.55
-                    PlasmaComponents.Label { text: "Perfil Energía"; font.pointSize: 9; Layout.fillWidth: true }
+                    PlasmaComponents.Label { text: t("power_profile"); font.pointSize: 9; Layout.fillWidth: true }
                     PlasmaComponents.ComboBox {
                         font.pointSize: 8
                         Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
-                        model: root.tdpManual ? ["Manual (Custom)"] : ["Ahorro (13W)", "Equilibrado (17W)", root.acConectado ? "Rendimiento (30W)" : "Rendimiento (25W)"]
+                        model: root.tdpManual ? [t("manual_custom")] : [t("quiet") + " (13W)", t("balanced") + " (17W)", root.acConectado ? (t("performance") + " (30W)") : (t("performance") + " (25W)")]
                         currentIndex: root.tdpManual ? 0 : root.perfilEnergia
                         onActivated: (index) => {
                             pausarSync()
@@ -504,7 +509,7 @@ PlasmoidItem {
                 Kirigami.Separator { Layout.fillWidth: true }
 
                 PlasmaComponents.Switch {
-                    text: "Límite TDP Manual"
+                    text: t("manual_tdp_limit")
                     font.pointSize: 9
                     checked: root.tdpManual
                     onToggled: {
@@ -527,7 +532,7 @@ PlasmoidItem {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        PlasmaComponents.Label { text: "Límite TDP"; font.pointSize: 9; Layout.fillWidth: true }
+                        PlasmaComponents.Label { text: t("tdp_limit"); font.pointSize: 9; Layout.fillWidth: true }
                         PlasmaComponents.Label { text: root.tdpWatts + " W"; font.pointSize: 9.5; font.bold: true }
                     }
                     PlasmaComponents.Slider {
@@ -577,7 +582,7 @@ PlasmoidItem {
                         }
                     }
                     PlasmaComponents.Switch {
-                        text: "Impulso SPPT / FPPT"
+                        text: t("sppt_fppt_boost")
                         font.pointSize: 9
                         enabled: root.tdpManual && root.tdpWatts >= 25
                         checked: root.tdpBoost
@@ -604,7 +609,7 @@ PlasmoidItem {
                 }
 
                 PlasmaComponents.Switch {
-                    text: "Cuidado de Batería (80%)"
+                    text: t("battery_care")
                     font.pointSize: 9
                     checked: root.cuidadoBateria
                     onToggled: {
@@ -624,11 +629,11 @@ PlasmoidItem {
             // Selector de Modo Principal
             RowLayout {
                 Layout.fillWidth: true
-                PlasmaComponents.Label { text: "Modo"; font.pointSize: 9; Layout.fillWidth: true }
+                PlasmaComponents.Label { text: t("mode"); font.pointSize: 9; Layout.fillWidth: true }
                 PlasmaComponents.ComboBox {
                     font.pointSize: 9
                     Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
-                    model: Array("Automático (BIOS)", "Manual (Perfiles)", "Curva Personalizada")
+                    model: Array(t("fan_auto_bios"), t("fan_manual_profiles"), t("fan_custom_curve"))
                     currentIndex: root.modoActual
                     onActivated: (index) => {
                         pausarSync()
@@ -668,21 +673,21 @@ PlasmoidItem {
                     spacing: 4
 
                     PlasmaComponents.Button {
-                        text: "Silencioso"
+                        text: t("fan_quiet")
                         font.pointSize: 8
                         Layout.fillWidth: true
                         highlighted: root.vincularFans && root.velAmbos === 30
                         onClicked: aplicarPreset(30)
                     }
                     PlasmaComponents.Button {
-                        text: "Equilibrado"
+                        text: t("fan_balanced")
                         font.pointSize: 8
                         Layout.fillWidth: true
                         highlighted: root.vincularFans && root.velAmbos === 60
                         onClicked: aplicarPreset(60)
                     }
                     PlasmaComponents.Button {
-                        text: "Turbo"
+                        text: t("fan_turbo")
                         font.pointSize: 8
                         Layout.fillWidth: true
                         highlighted: root.vincularFans && root.velAmbos === 90
@@ -691,7 +696,7 @@ PlasmoidItem {
                 }
 
                 PlasmaComponents.Switch {
-                    text: "Vincular CPU + GPU"
+                    text: t("link_cpu_gpu")
                     font.pointSize: 9
                     checked: root.vincularFans
                     onToggled: {
@@ -712,7 +717,7 @@ PlasmoidItem {
                     spacing: 0
                     RowLayout {
                         Layout.fillWidth: true
-                        PlasmaComponents.Label { text: "Ambos"; font.pointSize: 9; Layout.fillWidth: true }
+                        PlasmaComponents.Label { text: t("both"); font.pointSize: 9; Layout.fillWidth: true }
                         PlasmaComponents.Label { text: root.velAmbos + "%"; font.pointSize: 9; font.bold: true }
                     }
                     PlasmaComponents.Slider {
@@ -772,14 +777,14 @@ PlasmoidItem {
                 // Selector Gráfico vs Deslizadores + Botón Restaurar
                 RowLayout {
                     Layout.fillWidth: true
-                    PlasmaComponents.Label { text: "Vista"; font.pointSize: 9; Layout.fillWidth: true }
+                    PlasmaComponents.Label { text: t("view"); font.pointSize: 9; Layout.fillWidth: true }
 
                     PlasmaComponents.ToolButton {
                         icon.name: "edit-undo"
                         icon.width: 16
                         icon.height: 16
                         PlasmaComponents.ToolTip.visible: hovered
-                        PlasmaComponents.ToolTip.text: "Restaurar curva por defecto"
+                        PlasmaComponents.ToolTip.text: t("reset_curve_tip")
                         onClicked: {
                             root.curvaPuntos = Array(15, 25, 40, 55, 70, 85, 95, 100)
                             root.curvaActualizada()
@@ -790,7 +795,7 @@ PlasmoidItem {
                     PlasmaComponents.ComboBox {
                         font.pointSize: 8
                         Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
-                        model: Array("Curva Manual", "Deslizadores")
+                        model: Array(t("manual_curve"), t("sliders"))
                         currentIndex: root.vistaCurva
                         onActivated: (index) => {
                             root.vistaCurva = index
@@ -803,7 +808,7 @@ PlasmoidItem {
                     Layout.fillWidth: true
                     spacing: 4
                     PlasmaComponents.Button {
-                        text: "Silencioso"
+                        text: t("fan_quiet")
                         font.pointSize: 8
                         Layout.fillWidth: true
                         Layout.preferredHeight: 26
@@ -814,7 +819,7 @@ PlasmoidItem {
                         }
                     }
                     PlasmaComponents.Button {
-                        text: "Equilibrado"
+                        text: t("fan_balanced")
                         font.pointSize: 8
                         Layout.fillWidth: true
                         Layout.preferredHeight: 26
@@ -825,7 +830,7 @@ PlasmoidItem {
                         }
                     }
                     PlasmaComponents.Button {
-                        text: "Turbo"
+                        text: t("fan_turbo")
                         font.pointSize: 8
                         Layout.fillWidth: true
                         Layout.preferredHeight: 26
@@ -900,7 +905,6 @@ PlasmoidItem {
 
                                 // Línea azul pasando por el centro exacto de cada círculo
                                 ctx.strokeStyle = "#3daee9"
-                                ctx.lineWidth = 2.5
                                 ctx.beginPath()
                                 for (let i = 0; i < 8; i++) {
                                     let item = puntosRepeater.itemAt(i)
@@ -1140,7 +1144,7 @@ PlasmoidItem {
                     RowLayout {
                         Layout.fillWidth: true
                         PlasmaComponents.Switch {
-                            text: "Iluminación Joysticks"
+                            text: t("joystick_lighting")
                             font.pointSize: 9
                             Layout.fillWidth: true
                             checked: root.rgbBrillo > 0
@@ -1220,12 +1224,12 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         enabled: root.rgbBrillo > 0
                         opacity: root.rgbBrillo > 0 ? 1.0 : 0.45
-                        PlasmaComponents.Label { text: "Modo"; font.pointSize: 9; Layout.fillWidth: true }
+                        PlasmaComponents.Label { text: t("mode"); font.pointSize: 9; Layout.fillWidth: true }
                         PlasmaComponents.ComboBox {
                             font.pointSize: 8.5
                             Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
                             readonly property var modosLista: Array("fijo", "respiracion", "ciclo", "arcoiris", "temp", "bateria", "hora")
-                            model: Array("Fijo (Color)", "Respiración", "Ciclo de Colores", "Arcoíris", "Temperatura APU", "Nivel Batería", "Ciclo Horario")
+                            model: [t("rgb_fixed_color"), t("rgb_breathing"), t("rgb_color_cycle"), t("rgb_rainbow"), t("rgb_apu_temp"), t("rgb_bat_level"), t("rgb_time_cycle")]
                             currentIndex: Math.max(0, modosLista.indexOf(root.rgbModo))
                             onActivated: (index) => {
                                 root.rgbModo = modosLista[index]
@@ -1242,7 +1246,7 @@ PlasmoidItem {
                         spacing: 0
                         RowLayout {
                             Layout.fillWidth: true
-                            PlasmaComponents.Label { text: "Brillo"; font.pointSize: 9; Layout.fillWidth: true }
+                            PlasmaComponents.Label { text: t("brightness"); font.pointSize: 9; Layout.fillWidth: true }
                             PlasmaComponents.Label { text: root.rgbBrillo + "%"; font.pointSize: 9; font.bold: true }
                         }
                         PlasmaComponents.Slider {
@@ -1269,9 +1273,9 @@ PlasmoidItem {
                         spacing: 0
                         RowLayout {
                             Layout.fillWidth: true
-                            PlasmaComponents.Label { text: "Velocidad"; font.pointSize: 9; Layout.fillWidth: true }
+                            PlasmaComponents.Label { text: t("speed"); font.pointSize: 9; Layout.fillWidth: true }
                             PlasmaComponents.Label {
-                                text: root.rgbVel === 1 ? "Lenta" : (root.rgbVel === 3 ? "Rápida" : "Media")
+                                text: root.rgbVel === 1 ? t("slow") : (root.rgbVel === 3 ? t("fast") : t("medium"))
                                 font.pointSize: 9; font.bold: true
                             }
                         }
@@ -1284,8 +1288,8 @@ PlasmoidItem {
                         }
                         RowLayout {
                             Layout.fillWidth: true
-                            PlasmaComponents.Label { text: "Lenta"; font.pointSize: 7.5; opacity: 0.7; Layout.fillWidth: true }
-                            PlasmaComponents.Label { text: "Rápida"; font.pointSize: 7.5; opacity: 0.7 }
+                            PlasmaComponents.Label { text: t("slow"); font.pointSize: 7.5; opacity: 0.7; Layout.fillWidth: true }
+                            PlasmaComponents.Label { text: t("fast"); font.pointSize: 7.5; opacity: 0.7 }
                         }
                     }
 
