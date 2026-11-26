@@ -12,7 +12,8 @@ PlasmoidItem {
     id: root
     readonly property string lang: I18n.detectarIdioma(Qt.locale().name)
     function t(clave) { return I18n.tr(lang, clave) }
-    onExpandedChanged: if (expanded) ejecutarComando("estado")
+    onExpandedChanged: if (root.expanded) ejecutarComando("estado")
+
 
 
     //lee los valores de tdp y energia guardados por KDE Plasma al iniciar
