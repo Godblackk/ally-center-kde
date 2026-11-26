@@ -494,6 +494,7 @@ PlasmoidItem {
                         Layout.preferredWidth: Kirigami.Units.gridUnit * 8.5
                         model: root.tdpManual ? [t("manual_custom")] : [t("quiet") + " (13W)", t("balanced") + " (17W)", root.acConectado ? (t("performance") + " (30W)") : (t("performance") + " (25W)")]
                         currentIndex: root.tdpManual ? 0 : root.perfilEnergia
+                        onModelChanged: currentIndex = root.tdpManual ? 0 : root.perfilEnergia
                         onActivated: (index) => {
                             pausarSync()
                             root.perfilEnergia = index
