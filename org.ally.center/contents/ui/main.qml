@@ -212,11 +212,14 @@ PlasmoidItem {
                             root.acConectado = info.ac_conectado
                             if (!root.acConectado && root.tdpWatts > 25) {
                                 root.tdpWatts = 25
-                                if (root.tdpManual) ejecutarComando("tdp 25")
                             }
-                            if (cambioAc && !root.tdpManual && root.perfilEnergia === 2) {
-                                root.tdpWatts = root.acConectado ? 30 : 25
-                                ejecutarComando("perfil 2")
+                            if (cambioAc) {
+                                if (!root.tdpManual && root.perfilEnergia === 2) {
+                                    root.tdpWatts = root.acConectado ? 30 : 25
+                                    ejecutarComando("perfil 2")
+                                } else {
+                                    ejecutarComando("estado")
+                                }
                             }
                         }
                 } catch (e) {
@@ -542,6 +545,7 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         from: 7; to: root.maxTdpActual; stepSize: 1
                         value: root.tdpWatts
+                        onToChanged: value = root.tdpWatts
                         Connections {
                             target: root
                             function onTdpWattsChanged() {

@@ -70,8 +70,6 @@ JS_INJECT = """
     const t = (k) => ALLY_DICT[k] || ALLY_FALLBACK[k] || k;
     const TEMPS = Array.of(30, 40, 50, 60, 70, 80, 90, 100);
     const CURVA_DEF = Array.of(15, 25, 40, 55, 70, 85, 95, 100);
-
-
     let estado = {
         modelo: "Center ROG Ally X",
         sync_modos: true,
@@ -198,8 +196,6 @@ JS_INJECT = """
                 </button>
             </div>
 
-
-
             <div id="ally-pane-tdp" style="background: #1b2838; border-radius: 8px; padding: 10px;">
                 <div id="ally-perfil-wrapper" style="position: relative; margin-bottom: 10px;">
                     <div id="ally-row-perfil" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer;">
@@ -246,9 +242,6 @@ JS_INJECT = """
                     </div>
                 </div>
             </div>
-
-
-
 
             <div id="ally-pane-fan" style="display: none; background: #1b2838; border-radius: 8px; padding: 10px;">
                 <div style="position: relative; margin-bottom: 10px;">
@@ -330,11 +323,6 @@ JS_INJECT = """
                 </div>
             </div>
 
-
-
-
-
-
             <div id="ally-pane-rgb" style="display: none; background: #1b2838; border-radius: 8px; padding: 10px;">
                 <div id="ally-row-rgb-activo" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 10px; cursor: pointer; padding: 2px 0;">
                     <span style="font-weight: 700;">${t("led_lighting")}</span>
@@ -409,9 +397,6 @@ JS_INJECT = """
                     </div>
                 </div>
             </div>
-
-
-
         `;
 
         box.querySelectorAll(".ally-subtab").forEach(btn => {
@@ -581,7 +566,6 @@ JS_INJECT = """
             timerFanMan = setTimeout(() => enviarComando({ cmd: "fan_sep", cpu: estado.cpu_pct, gpu: estado.gpu_pct }), 150);
         };
 
-
         const btnModoCurva = box.querySelector("#ally-row-curva-modo");
         btnModoCurva.onclick = () => {
             curvaTodosJuntos = !curvaTodosJuntos;
@@ -619,7 +603,6 @@ JS_INJECT = """
             };
         });
 
-
         // Presets de Curva Personalizada (Silencioso, Equilibrado, Turbo)
         box.querySelectorAll(".ally-curva-preset").forEach(btn => {
             btn.onclick = () => {
@@ -629,10 +612,6 @@ JS_INJECT = """
                 enviarComando({ cmd: "guardar_curva", val: estado.curva.slice() });
             };
         });
-
-
-
-
 
         // Controles RGB (Switch Encendido/Apagado + Selector de Modo + Colores + Brillo 5-100%)
         const aplicarRgb = () => {
@@ -778,22 +757,17 @@ JS_INJECT = """
      sec.querySelector("#ally-perfil-badge").textContent = (nombres[estado.perfil] ?? `${t("performance")} (${pMax})`) + " ▾";
      const optRend = sec.querySelector('.ally-perfil-opt[data-val="2"]');
      if (optRend) optRend.textContent = `${t("performance")} (${pMax})`;
-
-
         const manualOn = Boolean(estado.tdp_manual);
         const mBadge = sec.querySelector("#ally-manual-badge");
         mBadge.textContent = manualOn ? "ON" : "OFF";
         mBadge.style.background = manualOn ? "#66c0f4" : "#2a475e";
         mBadge.style.color = manualOn ? "#0e141b" : "#fff";
-
         const mBox = sec.querySelector("#ally-manual-box");
         mBox.style.opacity = manualOn ? "1" : "0.4";
         mBox.style.pointerEvents = manualOn ? "auto" : "none";
-
         const pWrap = sec.querySelector("#ally-perfil-wrapper");
         pWrap.style.opacity = manualOn ? "0.4" : "1";
         pWrap.style.pointerEvents = manualOn ? "none" : "auto";
-
         const preset30 = sec.querySelector("#ally-preset-30");
         if (preset30) preset30.style.display = estado.ac_conectado ? "block" : "none";
         const maxActual = estado.ac_conectado ? 30 : 25;
@@ -908,7 +882,6 @@ JS_INJECT = """
             }
         }
 
-
         const catRgb = ["respiracion", "ciclo", "arcoiris"].includes(modoRgb)
             ? "efectos"
             : (["temp", "bateria", "hora"].includes(modoRgb) ? "sensores" : "fijo");
@@ -982,18 +955,6 @@ JS_INJECT = """
     }, 2000);
 
     function intentarMontarEnConfigRapida() {
-        const secExistente = document.getElementById("ally-center-qam-section");
-        if (secExistente && secExistente.isConnected) {
-            if (!secExistente.querySelector("#ally-rgb-circulo")) {
-                secExistente.remove();
-            } else {
-                const p = secExistente.parentElement;
-                if (p && p.firstElementChild === secExistente && p.children.length > 1) {
-                    p.appendChild(secExistente);
-                }
-                return;
-            }
-        }
         const wifiEl = Array.from(document.querySelectorAll("div, span, label")).find(el => {
             const txt = (el.textContent || "").trim();
             return ["Wi-Fi", "WLAN", "Modo avión", "Airplane Mode", "Modo Avião", "Mode avion", "Flugmodus", "機内モード", "飞行模式", "无线局域网"].includes(txt);
@@ -1008,15 +969,30 @@ JS_INJECT = """
             }
             cont = cont.parentElement;
         }
-
         if (!cont || cont === document.body) return;
 
         const destino = (cont.parentElement && cont.parentElement !== document.body) ? cont.parentElement : cont;
         if (destino.children.length < 2) return;
-        const sec = crearSeccionAlly();
+
+        let sec = document.getElementById("ally-center-qam-section");
+        if (sec && sec.isConnected) {
+            if (!sec.querySelector("#ally-rgb-circulo")) {
+                sec.remove();
+                sec = null;
+            } else {
+                // Si Steam re-renderizó controles debajo de nuestro panel, lo devuelve al final
+                if (sec.parentElement !== destino || destino.lastElementChild !== sec) {
+                    destino.appendChild(sec);
+                }
+                return;
+            }
+        }
+
+        sec = crearSeccionAlly();
         destino.appendChild(sec);
         enviarComando({ cmd: "estado" });
     }
+
 
     if (window.__allyMountTimer) clearInterval(window.__allyMountTimer);
     window.__allyMountTimer = setInterval(intentarMontarEnConfigRapida, 400);
@@ -1025,7 +1001,6 @@ JS_INJECT = """
     window.__allyObs.observe(document.documentElement, { childList: true, subtree: true });
     intentarMontarEnConfigRapida();
 })();""".replace("__JS_STRINGS_I18N__", JS_STRINGS_I18N).replace("__LANG_UI__", LANG_UI)
-
 
 
 async def manejar_target(ws_url):

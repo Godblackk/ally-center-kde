@@ -112,6 +112,10 @@ def leer_estado():
             for k in ("curva", "modo_fan", "tdp_manual", "tdp", "tdp_boost", "perfil", "boost", "bateria_80", "rgb_modo", "rgb", "rgb_brillo", "rgb_vel", "fan_pct", "vincular_fans", "cpu_pct", "gpu_pct"):
                 if k in fuente:
                     datos[k] = fuente[k]
+            if "tdp" in datos:
+                max_w_ui = 30 if datos["ac_conectado"] else 25
+                datos["tdp"] = max(7, min(max_w_ui, int(datos["tdp"])))
+
         except Exception:
             pass
 
@@ -165,8 +169,9 @@ def detectar_modelo():
     return "Center ROG Ally X"
 
 def ajustar_tdp(watts, boost_pico=None):
+    w_configurado = max(7, min(30, int(watts)))
     max_w = 30 if cargador_conectado() else 25
-    w = max(7, min(max_w, int(watts)))
+    w = min(max_w, w_configurado)
     if boost_pico is None and os.path.exists(CONFIG_SISTEMA):
         try:
             with open(CONFIG_SISTEMA, "r") as f:
@@ -192,9 +197,10 @@ def ajustar_tdp(watts, boost_pico=None):
                     f.write(str(val_escribir))
             except Exception:
                 pass
-    guardar_estado_sistema("tdp", w)
+    guardar_estado_sistema("tdp", w_configurado)
     guardar_estado_sistema("tdp_manual", True)
-    guardar_estado_sistema("tdp_boost", usar_pico)
+    guardar_estado_sistema("tdp_boost", bool(boost_pico) and (w_configurado >= 25))
+
 
 
 
