@@ -10,6 +10,52 @@ Inspirado en la comodidad de *Armoury Crate* y *Command Center*, este plasmoid p
 
 ---
 
+## 📸 Capturas de Pantalla
+
+### Escritorio (KDE Plasma 6)
+
+| Control de TDP | Curva de Ventiladores | Iluminación RGB |
+| :---: | :---: | :---: |
+| ![KDE TDP](docs/capturas/kde-tdp-manual.png) | ![KDE Curva Ventiladores](docs/capturas/kde-venti-curva.png) | ![KDE RGB](docs/capturas/kde-rgb-fijo.png) |
+
+### Modo Juego (Steam QAM)
+
+| Control de TDP | Curva de Ventiladores | Efectos y Sensores RGB |
+| :---: | :---: | :---: |
+| ![Game TDP](docs/capturas/game-tdp-manual.png) | ![Game Curva Ventiladores](docs/capturas/game-venti-perso-cascada.png) | ![Game RGB](docs/capturas/game-rgb-efecto.png) |
+
+<details>
+<summary><b>🖼️ Ver todas las vistas y modos detallados (18 capturas adicionales)</b></summary>
+<br>
+
+#### Más vistas en KDE Plasma 6
+
+| Perfiles Energía | Ventiladores BIOS | Ventiladores Deslizadores |
+| :---: | :---: | :---: |
+| ![KDE Perfiles](docs/capturas/kde-tdp-perfiles.png) | ![KDE Venti BIOS](docs/capturas/kde-venti-bios.png) | ![KDE Venti Deslizadores](docs/capturas/kde-venti-desliz.png) |
+
+| Ventiladores Dual | Ventiladores Solo | RGB Modos |
+| :---: | :---: | :---: |
+| ![KDE Venti Dual](docs/capturas/kde-venti-perfil-dual.png) | ![KDE Venti Solo](docs/capturas/kde-venti-perfil-solo.png) | ![KDE RGB Modos](docs/capturas/kde-rgb-modos.png) |
+
+| RGB Ciclo | RGB Respiración | RGB Temp APU | RGB Apagado |
+| :---: | :---: | :---: | :---: |
+| ![KDE RGB Ciclo](docs/capturas/kde-rgb-ciclo.png) | ![KDE RGB Respiración](docs/capturas/kde-rgb-respi.png) | ![KDE RGB Temp](docs/capturas/kde-rgb-temp.png) | ![KDE RGB Off](docs/capturas/kde-rgb-off.png) |
+
+#### Más vistas en Modo Juego (Steam QAM)
+
+| Perfiles Energía | Ventiladores Modos | Ventiladores BIOS | Ventiladores Dual |
+| :---: | :---: | :---: | :---: |
+| ![Game Perfiles](docs/capturas/game-tdp-perfiles.png) | ![Game Venti Perfiles](docs/capturas/game-venti-perfiles.png) | ![Game Venti BIOS](docs/capturas/game-venti-perfiles-bios.png) | ![Game Venti Dual](docs/capturas/game-venti-perfiles-dual.png) |
+
+| Ventiladores Único | Curva Todos Juntos | RGB Color Fijo | RGB Sensores |
+| :---: | :---: | :---: | :---: |
+| ![Game Venti Único](docs/capturas/game-venti-perfiles-unico.png) | ![Game Curva Todo](docs/capturas/game-venti%20perso-todo.png) | ![Game RGB Fijo](docs/capturas/game-rgb-fijo.png) | ![Game RGB Sensor](docs/capturas/game-rgb-sensor.png) |
+
+</details>
+
+---
+
 ## ✨ Características Principales
 
 * **🚀 Control Total de TDP y Rendimiento:**
@@ -40,6 +86,23 @@ Inspirado en la comodidad de *Armoury Crate* y *Command Center*, este plasmoid p
 * **🌐 Soporte Multi-idioma Automático:**
   * Detecta automáticamente el idioma del sistema y adapta la interfaz de escritorio y Modo Juego en **Español, Inglés, Portugués, Francés, Alemán, Japonés y Chino Simplificado** (con **Inglés** por defecto para cualquier otro idioma).
 
+---
+
+## 💻 Compatibilidad y Requisitos
+
+### Hardware
+
+| Dispositivo | Estado | Detalles |
+| :--- | :---: | :--- |
+| **ASUS ROG Ally X** (`RC72LA`) | ✅ **Verificado** | Soporte completo: TDP (hasta 30W AC / 25W Batería), curvas de ventiladores, límite de batería al 80%, telemetría y control RGB. |
+| **ASUS ROG Ally** (`RC71L` - Z1 / Z1 Extreme) | 🟡 **Compatible** | Misma arquitectura de kernel (`asus-armoury` y LEDs HID). Pendiente de pruebas físicas en hardware original. |
+| **ROG Xbox Ally / Xbox Ally X** (`RC73YA` / `RC73XA`) | ⚠️ **Experimental** | TDP, ventiladores y batería funcionan en kernel ≥ 6.19; el control RGB usa un identificador USB distinto y no está soportado aún. |
+
+### Sistema Operativo y Entornos
+* **Distribuciones Linux:** **CachyOS**, **Bazzite**, **Arch Linux** o derivados con **Linux Kernel 6.13+** (requiere módulo `asus-armoury` y driver `amdgpu`).
+* **Entorno de Escritorio:** **KDE Plasma 6** (para el plasmoid nativo).
+* **Modo Juego:** **Steam Big Picture** / **Gamescope Session** (requiere Steam ejecutándose con `--remote-debugging-port=8080`).
+* **Dependencias:** `python3`, `python-websockets` y `systemd`.
 
 ---
 
