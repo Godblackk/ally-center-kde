@@ -50,7 +50,7 @@ Inspirado en la comodidad de *Armoury Crate* y *Command Center*, este plasmoid p
 
 | Ventiladores Único | Curva Todos Juntos | RGB Color Fijo | RGB Sensores |
 | :---: | :---: | :---: | :---: |
-| ![Game Venti Único](docs/capturas/game-venti-perfiles-unico.png) | ![Game Curva Todo](docs/capturas/game-venti%20perso-todo.png) | ![Game RGB Fijo](docs/capturas/game-rgb-fijo.png) | ![Game RGB Sensor](docs/capturas/game-rgb-sensor.png) |
+| ![Game Venti Único](docs/capturas/game-venti-perfiles-unico.png) | ![Game Curva Todo](docs/capturas/game-venti-perso-todo.png) | ![Game RGB Fijo](docs/capturas/game-rgb-fijo.png) | ![Game RGB Sensor](docs/capturas/game-rgb-sensor.png) |
 
 </details>
 
