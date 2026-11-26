@@ -92,7 +92,12 @@ systemctl --user daemon-reload
 systemctl --user enable --now ally-steam-bridge.service
 systemctl --user restart ally-steam-bridge.service
 
+mkdir -p "$HOME/.config/environment.d"
+echo "SDL_JOYSTICK_HIDAPI=0" > "$HOME/.config/environment.d/ally-center.conf"
+command -v flatpak >/dev/null 2>&1 && flatpak override --user --env=SDL_JOYSTICK_HIDAPI=0 2>/dev/null || true
+
 echo "==> Reiniciando Plasma..."
+
 systemctl --user restart plasma-plasmashell 2>/dev/null || true
 
 echo "¡Listo! Haz clic derecho en tu barra de tareas -> Anadir o gestionar widgets -> Center ROG Ally."

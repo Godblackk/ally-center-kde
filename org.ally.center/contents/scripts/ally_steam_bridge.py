@@ -1186,19 +1186,22 @@ async def bucle_principal():
                     if url not in tareas_activas:
                         tareas_activas.update({url: asyncio.create_task(manejar_target(url))})
 
-            # Detecta si el proceso gamescope está activo en este momento
+            # Detecta si estamos en sesión de escritorio KDE Plasma
+            en_sesion_kde = os.environ.get("XDG_CURRENT_DESKTOP", "").upper() == "KDE"
             gamescope_actual = False
-            for p in os.listdir("/proc"):
-                if p.isdigit():
-                    try:
-                        with open(f"/proc/{p}/comm", "r") as f:
-                            if f.read().strip() == "gamescope":
-                                gamescope_actual = True
-                                break
-                    except Exception:
-                        pass
+            if not en_sesion_kde:
+                for p in os.listdir("/proc"):
+                    if p.isdigit():
+                        try:
+                            with open(f"/proc/{p}/comm", "r") as f:
+                                if f.read().strip() == "gamescope":
+                                    gamescope_actual = True
+                                    break
+                        except Exception:
+                            pass
 
             entorno_actual = "game" if (urls_actuales or gamescope_actual) else "desktop"
+
 
             # Se dispara si cambió el entorno O si acaba de cerrarse la sesión de gamescope
             if entorno_actual != entorno_anterior or (gamescope_anterior is True and not gamescope_actual):
