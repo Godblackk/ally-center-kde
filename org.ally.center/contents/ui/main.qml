@@ -272,15 +272,13 @@ PlasmoidItem {
 
     }
 
-
     Timer {
-        interval: root.expanded ? 1000 : 3000
-        running: root.expanded || root.rgbModo !== "fijo"
+        interval: 1000
+        running: root.expanded
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             ejecutarComando("estado")
-            if ((root.rgbModo === "temp" || root.rgbModo === "bateria" || root.rgbModo === "hora") && root.rgbBrillo > 0) ejecutarComando("rgb_tick")
         }
     }
 

@@ -5,6 +5,8 @@ import os
 import subprocess
 import urllib.request
 import websockets
+import time
+
 
 
 SCRIPT_ALLY = os.path.expanduser("~/.local/share/plasma/plasmoids/org.ally.center/contents/scripts/ally_center.py")
@@ -1148,6 +1150,8 @@ async def bucle_principal():
     gamescope_anterior = None
     tarea_vigilante = None
     ultimo_estado_rgb = None  # Guarda (modo, valor_disparado, brillo)
+    tiempo_cambio_entorno = 0.0
+
 
     while True:
         try:
@@ -1182,6 +1186,8 @@ async def bucle_principal():
             if entorno_actual != entorno_anterior or (gamescope_anterior is True and not gamescope_actual):
                 entorno_anterior = entorno_actual
                 gamescope_anterior = gamescope_actual
+                ultimo_estado_rgb = None
+                tiempo_cambio_entorno = time.monotonic()
 
                 if tarea_vigilante and not tarea_vigilante.done():
                     tarea_vigilante.cancel()
@@ -1201,11 +1207,11 @@ async def bucle_principal():
         except Exception as e:
             print(f"[ALLY-BRIDGE ERROR] {e}", flush=True)
 
-
         try:
-            if os.path.exists("/etc/ally-center.json"):
+            if os.path.exists("/etc/ally-center.json") and (time.monotonic() - tiempo_cambio_entorno) >= 1.2:
                 with open("/etc/ally-center.json", "r") as f:
-                    st_rgb = json.load(f)
+                    cfg_full = json.load(f)
+                st_rgb = cfg_full if cfg_full.get("sync_modos", True) else cfg_full.get("perfiles_modo", {}).get(entorno_actual, cfg_full)
                 lectura = leer_sensores_rgb(st_rgb)
                 if lectura is not None:
                     modo_rgb, val_actual, brillo_rgb = lectura
@@ -1218,19 +1224,15 @@ async def bucle_principal():
                         debe_disparar = True
                     elif modo_rgb == "hora" and val_actual != ultimo_estado_rgb[1]:
                         debe_disparar = True
-
                     if debe_disparar:
                         ultimo_estado_rgb = lectura
-                        asyncio.create_task(asyncio.to_thread(ejecutar_ally, ["rgb_tick"]))
+                        asyncio.create_task(asyncio.to_thread(ejecutar_ally, ["rgb_tick"], entorno_actual))
                 else:
                     ultimo_estado_rgb = None
         except Exception:
             pass
 
-        await asyncio.sleep(0.35 if entorno_actual == "game" else 1.0)
-
-
-
+        await asyncio.sleep(0.35 if entorno_actual == "game" else 0.4)
 
 if __name__ == "__main__":
     try:

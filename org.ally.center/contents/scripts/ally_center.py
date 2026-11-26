@@ -609,19 +609,18 @@ if __name__ == "__main__":
         est = cargar_estado_sistema()
         st = est if est.get("sync_modos", True) else est["perfiles_modo"].get(MODO_ACTUAL, est)
         m = st.get("rgb_modo", "fijo")
-        br = st.get("rgb_brillo", 80)
-        if m in ("bateria", "temperatura", "hora") and br > 0:
+        br = int(st.get("rgb_brillo", 80))
+        if m in ("bateria", "temp", "hora") and br > 0:
             rgb_base = st.get("rgb", [0, 210, 255])
-            rc, gc, bc = calcular_color_dinamico(m, rgb_base)
+            rc, gc, bc = calcular_color_dinamico(m, int(rgb_base[0]), int(rgb_base[1]), int(rgb_base[2]))
             cache_file = "/tmp/ally_rgb_tick_cache"
             firma = f"{rc},{gc},{bc},{br}"
             prev = open(cache_file).read().strip() if os.path.exists(cache_file) else ""
             if firma != prev:
-                escribir_led_rgb(rc, gc, bc, br, guardar_eca=False)
+                escribir_led_rgb(rc, gc, bc, br, guardar_mcu=False)
                 with open(cache_file, "w") as cf:
                     cf.write(firma)
         sys.exit(0)
-
     elif comando == "guardar_curva" and args:
         puntos = [int(x) for x in args.pop(0).split(",")]
         if len(puntos) == 8:
