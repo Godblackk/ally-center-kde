@@ -86,7 +86,7 @@ Inspired by the convenience of *Armoury Crate* and *Command Center*, this plasmo
 * **🕹️ Native Gaming Mode Integration (No Decky Loader Required):**
   * Automatically injects a native control panel into SteamOS / Big Picture's Quick Access Menu (`QuickAccess`) via Steam CEF WebSocket, keeping state and controls synced in real time with the desktop widget.
 * **🪶 Ultra-Lightweight Footprint:**
-  * Background daemon engineered with state caching and thermal hysteresis: steady **~14 MB RAM** footprint and **< 0.05% average CPU** usage, with zero memory leaks.
+  * Background daemon engineered with state caching and thermal hysteresis: steady **~15–22 MB RAM** footprint and **< 0.05% average CPU** usage, with zero memory leaks.
 * **🌐 Automatic Multi-Language Support:**
   * Automatically detects your system locale and adapts both Desktop and Gaming Mode UIs to **English, Spanish, Portuguese, French, German, Japanese, and Simplified Chinese** (falling back to **English** for any other locale).
 
