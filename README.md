@@ -86,7 +86,7 @@ Inspirado en la comodidad de *Armoury Crate* y *Command Center*, este plasmoid p
 * **🕹️ Integración Nativa en Modo Juego (Sin Decky Loader):**
   * Se inyecta automáticamente en el menú de acceso rápido (`QuickAccess`) de SteamOS / Big Picture mediante WebSocket CEF, sincronizando controles y estado en tiempo real con el widget de escritorio.
 * **🪶 Ligero y sin impacto en FPS:**
-  * Demonio optimizado con caché de estado e histéresis térmica: consumo constante de **~15–22 MB RAM** y **< 0.05% de CPU** promedio en segundo plano, sin fugas de memoria.
+  * Demon optimizado con caché de estado e histéresis térmica: consumo constante de **~15–22 MB RAM** y **< 0.05% de CPU** promedio en segundo plano, sin fugas de memoria.
 * **🌐 Soporte Multi-idioma Automático:**
   * Detecta automáticamente el idioma del sistema y adapta la interfaz de escritorio y Modo Juego en **Español, Inglés, Portugués, Francés, Alemán, Japonés y Chino Simplificado** (con **Inglés** por defecto para cualquier otro idioma).
 
