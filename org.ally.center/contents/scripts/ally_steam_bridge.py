@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import json
+import struct
 import os
 import subprocess
 import urllib.request
@@ -129,25 +130,126 @@ JS_INJECT = """
             <style>
                 #ally-center-qam-section input[type="range"] {
                     -webkit-appearance: none;
-                    appearance: none;
-                    height: 6px;
-                    background: #2a475e;
+                    width: 100%;
+                    height: 6px !important;
+                    background: #3b5b78;
                     border-radius: 4px;
                     outline: none;
                 }
                 #ally-center-qam-section input[type="range"]::-webkit-slider-thumb {
                     -webkit-appearance: none;
                     appearance: none;
-                    width: 22px;
-                    height: 22px;
+                    width: 18px !important;
+                    height: 18px !important;
                     border-radius: 50%;
                     background: #66c0f4;
-                    border: 2px solid #ffffff;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+                    border: 2px solid #0e141b;
                     cursor: pointer;
                 }
-            </style>
+                #ally-center-qam-section .ally-gp-focus:not(.ally-rgb-swatch):not(#ally-pane-rgb button):not(input[type="range"]) {
+                    background-color: rgba(255, 255, 255, 0.14) !important;
+                    outline: 1.5px solid rgba(255, 255, 255, 0.75) !important;
+                    box-shadow: none !important;
+                    border-radius: 6px;
+                    transition: background-color 0.08s ease;
+                }
+                #ally-center-qam-section #ally-row-fan-modo,
+                #ally-center-qam-section #ally-perfil-wrapper,
+                #ally-center-qam-section #ally-row-manual,
+                #ally-center-qam-section #ally-row-tdp-boost,
+                #ally-center-qam-section #ally-row-boost,
+                #ally-center-qam-section #ally-row-bat80,
+                #ally-center-qam-section #ally-row-vincular,
+                #ally-center-qam-section #ally-row-rgb-activo {
+                    padding: 4px 8px !important;
+                    margin-left: -8px !important;
+                    margin-right: -8px !important;
+                    border-radius: 6px;
+                }
+                #ally-center-qam-section input[type="range"]:not(.ally-pt) {
+                    width: calc(100% - 16px) !important;
+                    margin-left: 8px !important;
+                    margin-right: 8px !important;
+                }
+                #ally-center-qam-section #ally-tdp-slider {
+                    margin-top: 4px !important;
+                    margin-bottom: 14px !important;
+                }
+                #ally-center-qam-section input[type="range"].ally-gp-focus {
+                    outline: none !important;
+                    box-shadow: 0 2px 0 11px #263442, 0 2px 0 12.5px rgba(255, 255, 255, 0.72) !important;
+                    border-radius: 6px !important;
+                }
+                #ally-center-qam-section input[type="range"].ally-pt.ally-gp-focus {
+                    box-shadow: 0 0 0 8px #263442, 0 0 0 9.5px rgba(255, 255, 255, 0.72) !important;
+                }
 
+                #ally-center-qam-section .ally-rgb-swatch.ally-gp-focus {
+                    outline: 2.5px solid #66c0f4 !important;
+                    outline-offset: 2px !important;
+                    box-shadow: none !important;
+                }
+                #ally-center-qam-section #ally-pane-rgb button.ally-gp-focus {
+                    outline: 2px solid #66c0f4 !important;
+                    outline-offset: 1px !important;
+                    box-shadow: none !important;
+                }
+
+                #ally-center-qam-section #ally-btn-sync-modos.ally-gp-focus {
+                    background: #c0392b !important;
+                    color: #ffffff !important;
+                    border-color: #ff6b6b !important;
+                    outline: 2px solid #ffffff !important;
+                    box-shadow: 0 0 12px rgba(231, 76, 60, 0.75) !important;
+                    transform: scale(1.06);
+                }
+                #ally-center-qam-section .ally-subcard {
+                    background: transparent !important;
+                    border: none !important;
+                    border-radius: 6px;
+                    padding: 4px 6px;
+                    margin: -4px -6px;
+                }
+                #ally-center-qam-section .ally-subcard.ally-gp-focus {
+                    background-color: rgba(255, 255, 255, 0.10) !important;
+                    outline: 1.5px solid rgba(255, 255, 255, 0.75) !important;
+                }
+
+                #ally-tdp-slider {
+                    height: 6px !important;
+                }
+                #ally-center-qam-section .ally-bumper-hint {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 0 5px;
+                    height: 24px;
+                    flex-shrink: 0;
+                    border-radius: 4px;
+                    font-size: 9px;
+                    font-weight: 800;
+                    background: rgba(255, 255, 255, 0.08);
+                    color: #8b929a;
+                    opacity: 0.45;
+                    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+                    user-select: none;
+                }
+                #ally-center-qam-section.ally-gp-active .ally-bumper-hint {
+                    opacity: 1;
+                    color: #dcdedf;
+                    background: rgba(255, 255, 255, 0.16);
+                }
+
+                #ally-center-qam-section #ally-pane-tdp input[type="range"].ally-gp-focus::-webkit-slider-thumb,
+                #ally-center-qam-section #ally-pane-fan input[type="range"].ally-gp-focus::-webkit-slider-thumb,
+                #ally-center-qam-section #ally-pane-rgb input[type="range"].ally-gp-focus::-webkit-slider-thumb {
+                    background: #ffffff !important;
+                    border: 3px solid #66c0f4 !important;
+                    box-shadow: 0 0 10px rgba(102, 192, 244, 0.95) !important;
+                    width: 20px !important;
+                    height: 20px !important;
+                }
+            </style>
             <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
                 <div style="display: flex; justify-content: flex-end; align-items: center; gap: 6px;">
                     <button id="ally-btn-sync-modos" style="font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 5px; cursor: pointer; border: 1px solid #66c0f4; background: rgba(102, 192, 244, 0.18); color: #66c0f4;">🔗 ${t("sync_on")}</button>
@@ -183,7 +285,8 @@ JS_INJECT = """
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1.35fr 1fr; gap: 5px; margin-bottom: 11px;">
+            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 11px;">
+                <span class="ally-bumper-hint">LB</span>
                 <button class="ally-subtab" data-tab="tdp" style="display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid #66c0f4; background: #2a475e; color: #fff; white-space: nowrap;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12l4-4"/><path d="M7.5 16.5a6.5 6.5 0 1 1 9 0"/></svg>
                     <span>${t("tab_tdp")}</span>
@@ -196,6 +299,7 @@ JS_INJECT = """
                     <svg width="14" height="14" viewBox="0 0 24 24"><defs><linearGradient id="allyRgbGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff3b30"/><stop offset="35%" stop-color="#ffcc00"/><stop offset="68%" stop-color="#34c759"/><stop offset="100%" stop-color="#007aff"/></linearGradient></defs><circle cx="12" cy="12" r="9" fill="url(#allyRgbGrad)"/><circle cx="12" cy="12" r="3.2" fill="#1b2838"/></svg>
                     <span>${t("tab_rgb")}</span>
                 </button>
+                <span class="ally-bumper-hint">RB</span>
             </div>
 
             <div id="ally-pane-tdp" style="background: #1b2838; border-radius: 8px; padding: 10px;">
@@ -212,7 +316,7 @@ JS_INJECT = """
                 </div>
 
                 <div id="ally-row-manual" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 8px; cursor: pointer; padding: 3px 0;">
-                    <span>${t("manual_tdp_limit")}</span>
+                    <span id="ally-lbl-manual">${t("manual_tdp_limit")}</span>
                     <span id="ally-manual-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">OFF</span>
                 </div>
                 <div id="ally-manual-box" style="opacity: 0.4; pointer-events: none; transition: opacity 0.15s; margin-bottom: 10px;">
@@ -221,25 +325,25 @@ JS_INJECT = """
                         <strong id="ally-tdp-val" style="color: #66c0f4;">30 W</strong>
                     </div>
                     <input id="ally-tdp-slider" type="range" min="7" max="30" value="30" style="width: 100%; accent-color: #66c0f4; height: 22px; margin-bottom: 8px; cursor: pointer;">
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px;">
+                    <div class="ally-subcard" data-subcard="1" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px;">
                         <button class="ally-preset-btn" data-w="13" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">13W</button>
                         <button class="ally-preset-btn" data-w="17" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">17W</button>
                         <button class="ally-preset-btn" data-w="25" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">25W</button>
                         <button id="ally-preset-30" class="ally-preset-btn" data-w="30" style="background: #1b2838; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">30W</button>
                     </div>
                     <div id="ally-row-tdp-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 0;">
-                        <span>${t("sppt_fppt_boost")}</span>
+                        <span id="ally-lbl-pico" style="font-size: 11.5px; color: #8b929a;">${t("sppt_fppt_boost")}</span>
                         <span id="ally-tdp-boost-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">OFF</span>
                     </div>
                 </div>
 
                 <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; display: flex; flex-direction: column; gap: 6px;">
                     <div id="ally-row-boost" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 0;">
-                        <span>CPU Boost</span>
+                        <span id="ally-lbl-boost">CPU Boost</span>
                         <span id="ally-boost-badge" style="background: #2a475e; color: #fff; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">OFF</span>
                     </div>
                     <div id="ally-row-bat80" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 0;">
-                        <span>${t("battery_care")}</span>
+                        <span id="ally-lbl-bateria">${t("battery_care")}</span>
                         <span id="ally-bat80-badge" style="background: #66c0f4; color: #0e141b; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">ON</span>
                     </div>
                 </div>
@@ -263,14 +367,14 @@ JS_INJECT = """
                 </div>
 
                 <div id="ally-fan-sub-manual" style="display: none;">
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
+                    <div class="ally-subcard" data-subcard="1" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
                         <button class="ally-fan-preset" data-pct="30" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("fan_quiet")}</button>
                         <button class="ally-fan-preset" data-pct="60" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("fan_balanced")}</button>
                         <button class="ally-fan-preset" data-pct="90" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("fan_turbo")}</button>
                     </div>
 
                     <div id="ally-row-vincular" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 8px; cursor: pointer; padding: 3px 0;">
-                        <span>${t("link_cpu_gpu")}</span>
+                        <span id="ally-lbl-vincular">${t("link_cpu_gpu")}</span>
                         <span id="ally-vincular-badge" style="background: #66c0f4; color: #0e141b; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">ON</span>
                     </div>
 
@@ -301,33 +405,35 @@ JS_INJECT = """
                 </div>
 
                 <div id="ally-fan-sub-curva" style="display: none;">
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 8px;">
+                    <div class="ally-subcard" data-subcard="1" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 8px;">
                         <button class="ally-curva-preset" data-pts="5,10,15,20,30,40,50,60" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 6px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("fan_quiet")}</button>
                         <button class="ally-curva-preset" data-pts="15,25,40,55,70,85,95,100" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 6px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("fan_balanced")}</button>
                         <button class="ally-curva-preset" data-pts="30,45,60,75,90,100,100,100" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 6px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("fan_turbo")}</button>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <span style="font-size: 12px; font-weight: 700;">${t("curve_points")}</span>
-                        <div style="display: flex; gap: 6px;">
+                        <div class="ally-subcard" data-subcard="1" style="display: flex; gap: 6px;">
                             <button id="ally-btn-curva-reset" title="${t("reset_curve_tip")}" style="background: #2a475e; color: #fff; border: none; border-radius: 4px; padding: 5px 9px; font-size: 12px; font-weight: 700; cursor: pointer;">↺</button>
                             <button id="ally-row-curva-modo" style="background: #2a475e; color: #fff; border: none; border-radius: 4px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer;">${t("cascade")}</button>
                         </div>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                        ${TEMPS.map((temp, i) => `
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="width: 36px; font-size: 11px; color: #8b929a;">${temp}°C</span>
-                                <input class="ally-pt" data-idx="${i}" type="range" min="0" max="100" value="${CURVA_DEF.at(i)}" style="flex: 1;">
-                                <span class="ally-pt-val" style="width: 34px; text-align: right; font-size: 11px; font-weight: 600;">${CURVA_DEF.at(i)}%</span>
-                            </div>
-                        `).join("")}
+                        <div id="ally-subcard-curva" class="ally-subcard" data-subcard="1" style="display: flex; flex-direction: column; gap: 8px;">
+                            ${TEMPS.map((temp, i) => `
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="width: 36px; font-size: 11px; color: #8b929a;">${temp}°C</span>
+                                    <input class="ally-pt" data-idx="${i}" type="range" min="0" max="100" value="${CURVA_DEF.at(i)}" style="flex: 1;">
+                                    <span class="ally-pt-val" style="width: 34px; text-align: right; font-size: 11px; font-weight: 600;">${CURVA_DEF.at(i)}%</span>
+                                </div>
+                            `).join("")}
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div id="ally-pane-rgb" style="display: none; background: #1b2838; border-radius: 8px; padding: 10px;">
                 <div id="ally-row-rgb-activo" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 10px; cursor: pointer; padding: 2px 0;">
-                    <span style="font-weight: 700;">${t("led_lighting")}</span>
+                    <span id="ally-lbl-rgb" style="font-weight: 600;">${t("led_lighting")}</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span id="ally-rgb-circulo" style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #fff; background: rgb(0,210,255); display: inline-block; box-sizing: border-box;"></span>
                         <span id="ally-rgb-activo-badge" style="background: #66c0f4; color: #0e141b; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 11px;">ON</span>
@@ -335,14 +441,14 @@ JS_INJECT = """
                 </div>
 
                 <div id="ally-rgb-controles" style="transition: opacity 0.15s;">
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
+                    <div class="ally-subcard" data-subcard="1" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
                         <button class="ally-rgb-cat-btn" data-cat="fijo" style="background: #66c0f4; color: #0e141b; border: 1px solid #66c0f4; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_fixed")}</button>
                         <button class="ally-rgb-cat-btn" data-cat="efectos" style="background: #0e141b; color: #8b929a; border: 1px solid #2a475e; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_effects")}</button>
                         <button class="ally-rgb-cat-btn" data-cat="sensores" style="background: #0e141b; color: #8b929a; border: 1px solid #2a475e; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_sensors")}</button>
                     </div>
 
                     <div id="ally-rgb-sec-efectos" style="display: none; flex-direction: column; gap: 8px; margin-bottom: 10px;">
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+                       <div class="ally-subcard" data-subcard="1" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
                             <button class="ally-rgb-modo-btn" data-modo="respiracion" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_breathing")}</button>
                             <button class="ally-rgb-modo-btn" data-modo="ciclo" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_color_cycle")}</button>
                             <button class="ally-rgb-modo-btn" data-modo="arcoiris" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_rainbow")}</button>
@@ -368,7 +474,7 @@ JS_INJECT = """
                         </div>
                     </div>
 
-                    <div id="ally-rgb-sec-sensores" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
+                   <div id="ally-rgb-sec-sensores" class="ally-subcard" data-subcard="1" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px;">
                         <button class="ally-rgb-modo-btn" data-modo="temp" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_temp_short")}</button>
                         <button class="ally-rgb-modo-btn" data-modo="bateria" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_bat_short")}</button>
                         <button class="ally-rgb-modo-btn" data-modo="hora" style="background: #0e141b; border: 1px solid #3d5a73; color: #fff; border-radius: 5px; padding: 7px 0; font-size: 11px; font-weight: 700; cursor: pointer;">${t("rgb_time_short")}</button>
@@ -376,7 +482,7 @@ JS_INJECT = """
 
                     <div id="ally-rgb-colores-box" style="margin-bottom: 10px;">
                         <div style="font-size: 11px; color: #8b929a; margin-bottom: 6px;">${t("quick_colors")}</div>
-                        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;">
+                        <div class="ally-subcard" data-subcard="1" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;">
                             <button class="ally-rgb-swatch" data-rgb="255,0,0" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(255,0,0); cursor: pointer;"></button>
                             <button class="ally-rgb-swatch" data-rgb="0,210,255" style="height: 26px; border-radius: 5px; border: 2px solid #fff; background: rgb(0,210,255); cursor: pointer;"></button>
                             <button class="ally-rgb-swatch" data-rgb="165,40,255" style="height: 26px; border-radius: 5px; border: 1px solid #444; background: rgb(165,40,255); cursor: pointer;"></button>
@@ -459,7 +565,7 @@ JS_INJECT = """
             actualizarUI();
             enviarComando({ cmd: "tdp", val: w, boost_pico: estado.tdp_boost ? 1 : 0 });
         };
-        tdpSlider.oninput = () => setTdp(parseInt(tdpSlider.value));
+        tdpSlider.oninput = () => { __allyPintarRellenoSlider(tdpSlider); setTdp(parseInt(tdpSlider.value)); };
         box.querySelectorAll(".ally-preset-btn").forEach(btn => {
             btn.onclick = () => {
                 if (!estado.tdp_manual) estado.tdp_manual = true;
@@ -545,6 +651,7 @@ JS_INJECT = """
         let timerFanMan = null;
         const slAmbos = box.querySelector("#ally-fan-ambos-slider");
         slAmbos.oninput = () => {
+            __allyPintarRellenoSlider(slAmbos);
             const pct = parseInt(slAmbos.value);
             estado.fan_pct = pct;
             estado.cpu_pct = pct;
@@ -555,6 +662,7 @@ JS_INJECT = """
         };
         const slCpu = box.querySelector("#ally-fan-cpu-slider");
         slCpu.oninput = () => {
+            __allyPintarRellenoSlider(slCpu);
             estado.cpu_pct = parseInt(slCpu.value);
             actualizarUI();
             clearTimeout(timerFanMan);
@@ -562,6 +670,7 @@ JS_INJECT = """
         };
         const slGpu = box.querySelector("#ally-fan-gpu-slider");
         slGpu.oninput = () => {
+            __allyPintarRellenoSlider(slGpu);
             estado.gpu_pct = parseInt(slGpu.value);
             actualizarUI();
             clearTimeout(timerFanMan);
@@ -572,8 +681,9 @@ JS_INJECT = """
         btnModoCurva.onclick = () => {
             curvaTodosJuntos = !curvaTodosJuntos;
             btnModoCurva.textContent = curvaTodosJuntos ? t("all_together") : t("cascade");
-            btnModoCurva.style.background = curvaTodosJuntos ? "#66c0f4" : "#2a475e";
-            btnModoCurva.style.color = curvaTodosJuntos ? "#0e141b" : "#fff";
+            btnModoCurva.style.background = "#2a475e";
+            btnModoCurva.style.color = "#fff";
+
         };
         box.querySelector("#ally-btn-curva-reset").onclick = () => {
             estado.curva = CURVA_DEF.slice();
@@ -585,6 +695,7 @@ JS_INJECT = """
         let timerFan = null;
         slidersFan.forEach((sl, idx) => {
             sl.oninput = () => {
+                __allyPintarRellenoSlider(sl);
                 const v = parseInt(sl.value);
                 if (curvaTodosJuntos) {
                     estado.curva = estado.curva.map(() => v);
@@ -692,6 +803,23 @@ JS_INJECT = """
             enviarComando({ cmd: "sync_modos", val: estado.sync_modos ? "1" : "0" });
         };
 
+        box.addEventListener("pointerdown", (ev) => {
+            __allyNavActivo = true;
+            box.classList.add("ally-gp-active");
+            const selAll = "#ally-btn-sync-modos, #ally-perfil-badge, #ally-row-fan-modo, .ally-perfil-opt, .ally-fan-modo-opt, #ally-row-manual, #ally-row-tdp-boost, #ally-row-boost, #ally-row-bat80, #ally-row-vincular, #ally-row-rgb-activo, .ally-rgb-swatch, button, input[type='range'], [data-subcard='1']";
+            const el = ev.target.closest(selAll);
+            const sub = ev.target.closest("[data-subcard='1']");
+            if (el && el !== sub && __allyEsEditable(el)) {
+                __allySubcardActiva = sub || null;
+                __allyEnfocarElemento(el);
+            } else if (sub && __allyEsEditable(sub)) {
+                __allySubcardActiva = null;
+                __allyEnfocarElemento(sub);
+            }
+        });
+
+
+
         return box;
 
     }
@@ -764,6 +892,8 @@ JS_INJECT = """
         mBadge.textContent = manualOn ? "ON" : "OFF";
         mBadge.style.background = manualOn ? "#66c0f4" : "#2a475e";
         mBadge.style.color = manualOn ? "#0e141b" : "#fff";
+        const lblManual = sec.querySelector("#ally-lbl-manual");
+        if (lblManual) lblManual.style.color = manualOn ? "#dcdedf" : "#8b929a";
         const mBox = sec.querySelector("#ally-manual-box");
         mBox.style.opacity = manualOn ? "1" : "0.4";
         mBox.style.pointerEvents = manualOn ? "auto" : "none";
@@ -781,6 +911,7 @@ JS_INJECT = """
         const tdpS = sec.querySelector("#ally-tdp-slider");
         tdpS.max = maxActual;
         tdpS.value = estado.tdp;
+        __allyPintarRellenoSlider(tdpS);
         sec.querySelector("#ally-tdp-val").textContent = `${estado.tdp} W`;
 
         const tbHabilitado = manualOn && estado.tdp >= 25;
@@ -792,16 +923,22 @@ JS_INJECT = """
         tbBadge.textContent = tbActivo ? "ON" : "OFF";
         tbBadge.style.background = tbActivo ? "#66c0f4" : "#2a475e";
         tbBadge.style.color = tbActivo ? "#0e141b" : "#fff";
+        const lblPico = sec.querySelector("#ally-lbl-pico");
+        if (lblPico) lblPico.style.color = tbActivo ? "#dcdedf" : "#8b929a";
 
         const bBadge = sec.querySelector("#ally-boost-badge");
         bBadge.textContent = estado.boost ? "ON" : "OFF";
         bBadge.style.background = estado.boost ? "#66c0f4" : "#2a475e";
         bBadge.style.color = estado.boost ? "#0e141b" : "#fff";
+        const lblBoost = sec.querySelector("#ally-lbl-boost");
+        if (lblBoost) lblBoost.style.color = estado.boost ? "#dcdedf" : "#8b929a";
 
         const batBadge = sec.querySelector("#ally-bat80-badge");
         batBadge.textContent = estado.bateria_80 ? "ON" : "OFF";
         batBadge.style.background = estado.bateria_80 ? "#66c0f4" : "#2a475e";
         batBadge.style.color = estado.bateria_80 ? "#0e141b" : "#fff";
+        const lblBat = sec.querySelector("#ally-lbl-bateria");
+        if (lblBat) lblBat.style.color = estado.bateria_80 ? "#dcdedf" : "#8b929a";
 
 
         const modoFan = estado.modo_fan || "auto";
@@ -816,21 +953,28 @@ JS_INJECT = """
         vincBadge.textContent = vincOn ? "ON" : "OFF";
         vincBadge.style.background = vincOn ? "#66c0f4" : "#2a475e";
         vincBadge.style.color = vincOn ? "#0e141b" : "#fff";
+        const lblVinc = sec.querySelector("#ally-lbl-vincular");
+        if (lblVinc) lblVinc.style.color = vincOn ? "#dcdedf" : "#8b929a";
+
         sec.querySelector("#ally-fan-ambos-box").style.display = vincOn ? "block" : "none";
         sec.querySelector("#ally-fan-sep-box").style.display = vincOn ? "none" : "flex";
 
         const pctAmbos = estado.fan_pct ?? 50;
         sec.querySelector("#ally-fan-ambos-slider").value = pctAmbos;
+        __allyPintarRellenoSlider(sec.querySelector("#ally-fan-ambos-slider"));
         sec.querySelector("#ally-fan-ambos-val").textContent = `${pctAmbos}%`;
         sec.querySelector("#ally-fan-cpu-slider").value = estado.cpu_pct ?? pctAmbos;
+        __allyPintarRellenoSlider(sec.querySelector("#ally-fan-cpu-slider"));
         sec.querySelector("#ally-fan-cpu-val").textContent = `${estado.cpu_pct ?? pctAmbos}%`;
         sec.querySelector("#ally-fan-gpu-slider").value = estado.gpu_pct ?? pctAmbos;
+        __allyPintarRellenoSlider(sec.querySelector("#ally-fan-gpu-slider"));
         sec.querySelector("#ally-fan-gpu-val").textContent = `${estado.gpu_pct ?? pctAmbos}%`;
 
         if (Array.isArray(estado.curva) && estado.curva.length === 8) {
             const vals = sec.querySelectorAll(".ally-pt-val");
             sec.querySelectorAll(".ally-pt").forEach((sl, i) => {
                 sl.value = estado.curva.at(i);
+                __allyPintarRellenoSlider(sl);
                 if (vals.item(i)) vals.item(i).textContent = `${estado.curva.at(i)}%`;
             });
         }
@@ -839,6 +983,8 @@ JS_INJECT = """
         if (rgbOn) estado.rgb_brillo_previo = estado.rgb_brillo;
         const rgbActBadge = sec.querySelector("#ally-rgb-activo-badge");
         rgbActBadge.textContent = rgbOn ? "ON" : "OFF";
+        const lblRgb = sec.querySelector("#ally-lbl-rgb");
+        if (lblRgb) lblRgb.style.color = rgbOn ? "#dcdedf" : "#8b929a";
         rgbActBadge.style.background = rgbOn ? "#66c0f4" : "#2a475e";
         rgbActBadge.style.color = rgbOn ? "#0e141b" : "#fff";
 
@@ -907,7 +1053,12 @@ JS_INJECT = """
 
         const usaColor = ["fijo", "respiracion"].includes(modoRgb);
         sec.querySelector("#ally-rgb-colores-box").style.display = usaColor ? "block" : "none";
-
+        const rgbStr = Array.isArray(estado.rgb) ? estado.rgb.join(",") : "";
+        sec.querySelectorAll(".ally-rgb-swatch").forEach(btn => {
+             const act = (btn.dataset.rgb || "") === rgbStr;
+             btn.dataset.activo = act ? "1" : "0";
+             btn.style.transform = act ? "scale(1.08)" : "scale(1)";
+        });
         sec.querySelector("#ally-rgb-brillo-box").style.display = ["ciclo", "arcoiris"].includes(modoRgb) ? "none" : "block";
 
 
@@ -926,12 +1077,327 @@ JS_INJECT = """
         const velSl = sec.querySelector("#ally-rgb-vel");
         const pctVel = ((velAct - 1) / 2) * 100;
         velSl.value = velAct;
-        velSl.style.background = `linear-gradient(to right, #66c0f4 ${pctVel}%, #2a475e ${pctVel}%)`;
+        velSl.style.background = `linear-gradient(to right, #66c0f4 ${pctVel}%, #3b5b78 ${pctVel}%)`;
         velSl.style.setProperty("--vel-pct", `${pctVel}%`);
         sec.querySelector("#ally-rgb-vel-val").textContent = velAct === 1 ? t("slow") : (velAct === 3 ? t("fast") : t("medium"));
 
 
     }
+
+
+    function __allyPintarRellenoSlider(sl) {
+        if (!sl) return;
+        const min = parseFloat(sl.min) || 0;
+        const max = parseFloat(sl.max) || 100;
+        const val = parseFloat(sl.value) || 0;
+        const pct = max > min ? ((val - min) * 100) / (max - min) : 0;
+        sl.style.background = `linear-gradient(to right, #66c0f4 0%, #66c0f4 ${pct}%, #2a475e ${pct}%, #2a475e 100%)`;
+    }
+
+
+
+
+
+    // --- MOTOR DE NAVEGACION CON MANDO (ESTILO STEAM NATIVO) ---
+    let __allyNavActivo = false;
+    let __allySubcardActiva = null;
+    let __allyHoldTimer = null;
+    let __allyHoldInterval = null;
+    function __allyDetenerHold() {
+        if (__allyHoldTimer) { clearTimeout(__allyHoldTimer); __allyHoldTimer = null; }
+        if (__allyHoldInterval) { clearInterval(__allyHoldInterval); __allyHoldInterval = null; }
+    }
+    let __allyElFoco = null;
+    let __allyLastTs = 0, __allyLastAcc = "";
+
+    function __allyEsEditable(el) {
+        if (!el || !el.isConnected) return false;
+        let cur = el;
+        while (cur && cur !== document.body) {
+            const st = window.getComputedStyle(cur);
+            if (st.display === "none" || st.visibility === "hidden" || parseFloat(st.opacity) < 0.45) return false;
+            if (st.pointerEvents === "none") return false;
+            cur = cur.parentElement;
+        }
+        if (el.disabled) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+    }
+
+    function __allyObtenerPaneActivo() {
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec) return null;
+        for (const id of ["ally-pane-tdp", "ally-pane-fan", "ally-pane-rgb"]) {
+            const p = sec.querySelector(`#${id}`);
+            if (p && __allyEsEditable(p)) return p;
+        }
+        return null;
+    }
+        function __allyObtenerItemsNivel(subcard) {
+        const sec = document.getElementById("ally-center-qam-section");
+        const cont = __allyObtenerPaneActivo();
+        if (!sec || !cont) return [];
+
+        const mP = document.getElementById("ally-perfil-menu");
+        if (mP && __allyEsEditable(mP)) return Array.from(mP.querySelectorAll(".ally-perfil-opt")).filter(__allyEsEditable);
+        const mF = document.getElementById("ally-fan-modo-menu");
+        if (mF && __allyEsEditable(mF)) return Array.from(mF.querySelectorAll(".ally-fan-modo-opt")).filter(__allyEsEditable);
+
+        const sel = "[data-subcard='1'], #ally-perfil-badge, #ally-row-fan-modo, #ally-row-manual, #ally-row-tdp-boost, #ally-row-boost, #ally-row-bat80, #ally-row-vincular, #ally-row-rgb-activo, .ally-rgb-swatch, button, input[type='range']";
+        if (subcard && __allyEsEditable(subcard)) {
+            return Array.from(subcard.querySelectorAll("button, input[type='range']")).filter(__allyEsEditable);
+        }
+
+        const items = [];
+        const btnSync = document.getElementById("ally-btn-sync-modos");
+        if (btnSync && __allyEsEditable(btnSync)) items.push(btnSync);
+
+        for (const el of cont.querySelectorAll(sel)) {
+            if (!__allyEsEditable(el)) continue;
+            const pSub = el.parentElement ? el.parentElement.closest("[data-subcard='1']") : null;
+            if (pSub && cont.contains(pSub)) continue;
+            if (el.dataset && el.dataset.subcard === "1") {
+                if (Array.from(el.querySelectorAll("button, input[type='range']")).some(__allyEsEditable)) items.push(el);
+            } else {
+                items.push(el);
+            }
+        }
+        return items;
+    }
+
+    function __allyLimpiarFoco() {
+        if (__allyElFoco) { __allyElFoco.classList.remove("ally-gp-focus"); __allyElFoco = null; }
+    }
+
+    function __allyEnfocarElemento(el) {
+        __allyLimpiarFoco();
+        if (!el || !__allyEsEditable(el)) return;
+        __allyElFoco = el;
+        el.classList.add("ally-gp-focus");
+        try { el.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (e) {}
+    }
+
+    function __allyEnfocarPrimeroDePestana() {
+        __allySubcardActiva = null;
+        const items = __allyObtenerItemsNivel(null);
+        const btnSync = document.getElementById("ally-btn-sync-modos");
+        const prim = items.find(el => el !== btnSync) || items.at(0);
+        if (prim) __allyEnfocarElemento(prim); else __allyLimpiarFoco();
+    }
+
+    function __allyObtenerScroller(el) {
+        let p = el ? el.parentElement : null;
+        while (p && p !== document.body) {
+            const st = window.getComputedStyle(p);
+            if ((st.overflowY === "auto" || st.overflowY === "scroll") && p.scrollHeight > p.clientHeight + 10) return p;
+            p = p.parentElement;
+        }
+        return null;
+    }
+    window.__allyManejarMando = function(accion) {
+        const now = Date.now();
+        if (accion === __allyLastAcc && (now - __allyLastTs) < 85) return;
+        __allyLastTs = now; __allyLastAcc = accion;
+
+        const sec = document.getElementById("ally-center-qam-section");
+        if (!sec || !__allyEsEditable(sec)) {
+            __allyNavActivo = false; if (sec) sec.classList.remove("ally-gp-active"); __allySubcardActiva = null; window.__allyEstabaEnUltimoSteam = false; __allyLimpiarFoco(); return;
+        }
+
+        if (!__allyNavActivo) {
+            if (accion !== "DOWN") return;
+            const rect = sec.getBoundingClientRect();
+            if (rect.width <= 50 || rect.top >= window.innerHeight || rect.bottom <= 40) return;
+            const padre = sec.parentElement;
+            if (!padre) return;
+            const nativos = Array.from(padre.querySelectorAll("[tabindex], button, input, [role='switch'], [role='slider'], [role='button']"))
+                .filter(el => !sec.contains(el) && __allyEsEditable(el) && (el.compareDocumentPosition(sec) & Node.DOCUMENT_POSITION_FOLLOWING));
+            if (!nativos.length) return;
+            const ultimoSteam = nativos.at(-1);
+            const activo = document.activeElement;
+            const enUltimoAhora = activo && (activo === ultimoSteam || ultimoSteam.contains(activo) || (activo.contains && activo.contains(ultimoSteam)));
+            if (enUltimoAhora && window.__allyEstabaEnUltimoSteam) {
+                window.__allyEstabaEnUltimoSteam = false;
+                __allyNavActivo = true;
+                sec.classList.add("ally-gp-active");
+                __allyEnfocarPrimeroDePestana();
+            } else {
+                window.__allyEstabaEnUltimoSteam = !!enUltimoAhora;
+            }
+            return;
+        }
+
+        if (accion === "LB" || accion === "RB") {
+            const tabs = Array.from(sec.querySelectorAll(".ally-subtab")).filter(__allyEsEditable);
+            if (tabs.length >= 3) {
+                let i = tabs.findIndex(b => b.dataset.tab === tabActiva);
+                if (i < 0) i = 0;
+                i = (accion === "RB") ? (i + 1) % tabs.length : (i + tabs.length - 1) % tabs.length;
+                tabs.at(i).click();
+                setTimeout(__allyEnfocarPrimeroDePestana, 30);
+            }
+            return;
+        }
+
+        let items = __allyObtenerItemsNivel(__allySubcardActiva);
+        if (!items.length && __allySubcardActiva) { __allySubcardActiva = null; items = __allyObtenerItemsNivel(null); }
+        if (!items.length) return;
+
+        let idx = (__allyElFoco && items.includes(__allyElFoco)) ? items.indexOf(__allyElFoco) : -1;
+        if (idx < 0) {
+            const bs = document.getElementById("ally-btn-sync-modos");
+            const fb = items.find(e => e !== bs) || items.at(0);
+            idx = items.indexOf(fb);
+            __allyEnfocarElemento(fb);
+        }
+        const act = items.at(idx);
+
+        if (accion === "B") {
+            __allyDetenerHold();
+            const mP = document.getElementById("ally-perfil-menu");
+            if (mP && __allyEsEditable(mP)) { mP.style.display = "none"; const t = document.getElementById("ally-perfil-badge"); if (__allyEsEditable(t)) __allyEnfocarElemento(t); return; }
+            const mF = document.getElementById("ally-fan-modo-menu");
+            if (mF && __allyEsEditable(mF)) { mF.style.display = "none"; const t = document.getElementById("ally-row-fan-modo"); if (__allyEsEditable(t)) __allyEnfocarElemento(t); return; }
+            if (__allySubcardActiva) {
+                const prev = __allySubcardActiva;
+                __allySubcardActiva = null;
+                __allyEnfocarElemento(prev);
+                return;
+            }
+            __allyNavActivo = false;
+            sec.classList.remove("ally-gp-active");
+            window.__allyEstabaEnUltimoSteam = false;
+            __allyLimpiarFoco();
+            const sc = __allyObtenerScroller(sec); if (sc) sc.scrollTo({ top: 0, behavior: "smooth" });
+            const nativos = Array.from(document.querySelectorAll("[tabindex], button, input")).filter(el => !sec.contains(el) && __allyEsEditable(el));
+            if (nativos.length) nativos.at(-1).focus();
+            return;
+        }
+
+        if (accion === "A") {
+            if (act && act.tagName === "INPUT" && act.type === "range") {
+                if (__allySliderGrabbed === act) {
+                    act.classList.remove("ally-slider-grabbed");
+                    __allySliderGrabbed = null;
+                } else {
+                    if (__allySliderGrabbed) __allySliderGrabbed.classList.remove("ally-slider-grabbed");
+                    __allySliderGrabbed = act;
+                    act.classList.add("ally-slider-grabbed");
+                }
+                return;
+            }
+            if (act && act.dataset && act.dataset.subcard === "1") {
+                __allySubcardActiva = act;
+                const h = __allyObtenerItemsNivel(act);
+                if (h.length) {
+                    const activo = h.find(el => {
+                        if (el.dataset && el.dataset.activo === "1") return true;
+                        const bg = (el.style.backgroundColor || el.style.background || "").toLowerCase();
+                        const bd = (el.style.borderColor || el.style.border || "").toLowerCase();
+                        return bg.includes("102, 192, 244") || bg.includes("#66c0f4") || bg.includes("42, 71, 94") || bg.includes("#2a475e")
+                         || bd.includes("102, 192, 244") || bd.includes("#66c0f4");
+                 });
+                 __allyEnfocarElemento(activo || h.at(0));
+            }
+                return;
+            }
+            if (act && act.tagName !== "INPUT") {
+                const subA = __allySubcardActiva;
+                act.click();
+                setTimeout(() => {
+                    const mP = document.getElementById("ally-perfil-menu");
+                    if (mP && __allyEsEditable(mP)) {
+                        const actual = mP.querySelector(`.ally-perfil-opt[data-val="${estado.perfil}"]`) || mP.querySelector(".ally-perfil-opt");
+                        if (actual) { __allyEnfocarElemento(actual); return; }
+                    }
+                    const mF = document.getElementById("ally-fan-modo-menu");
+                    if (mF && __allyEsEditable(mF)) {
+                        const actual = mF.querySelector(`.ally-fan-modo-opt[data-modo="${estado.modo_fan || "auto"}"]`) || mF.querySelector(".ally-fan-modo-opt");
+                        if (actual) { __allyEnfocarElemento(actual); return; }
+                    }
+                    if (act && act.classList && act.classList.contains("ally-fan-modo-opt")) { const t = document.getElementById("ally-row-fan-modo"); if (__allyEsEditable(t)) { __allyEnfocarElemento(t); return; } }
+                    if (act && act.classList && act.classList.contains("ally-perfil-opt")) { const t = document.getElementById("ally-perfil-badge"); if (__allyEsEditable(t)) { __allyEnfocarElemento(t); return; } }
+                    const nv = __allyObtenerItemsNivel(subA);
+                    if (nv.includes(act)) __allyEnfocarElemento(act);
+                    else if (nv.length) __allyEnfocarElemento(nv.at(Math.min(idx, nv.length - 1)));
+                    else __allyEnfocarPrimeroDePestana();
+                }, 35);
+                return;
+            }
+            return;
+        }
+
+        if (accion === "LEFT" || accion === "RIGHT") {
+            if (act && act.tagName === "INPUT" && act.type === "range") {
+                const s = parseFloat(act.step) || 1, mn = parseFloat(act.min) || 0, mx = parseFloat(act.max) || 100, v = parseFloat(act.value) || 0;
+                const nv = accion === "RIGHT" ? Math.min(mx, v + s) : Math.max(mn, v - s);
+                if (nv !== v) { act.value = String(nv); act.dispatchEvent(new Event("input", { bubbles: true })); act.dispatchEvent(new Event("change", { bubbles: true })); }
+                return;
+            }
+            const rA = act.getBoundingClientRect(), sig = idx + (accion === "RIGHT" ? 1 : -1);
+            if (sig >= 0 && sig < items.length && Math.abs(items.at(sig).getBoundingClientRect().top - rA.top) < 18) __allyEnfocarElemento(items.at(sig));
+            return;
+        }
+
+        if (accion === "UP") { const rA = act.getBoundingClientRect(); for (let i = idx - 1; i >= 0; i--) { if (items.at(i).getBoundingClientRect().top < rA.top - 10) { __allyEnfocarElemento(items.at(i)); break; } } return; }
+        if (accion === "DOWN") { const rA = act.getBoundingClientRect(); for (let i = idx + 1; i < items.length; i++) { if (items.at(i).getBoundingClientRect().top > rA.top + 10) { __allyEnfocarElemento(items.at(i)); break; } } return; }
+    };
+
+    if (!window.__allySteamLockInstalled) {
+        window.__allySteamLockInstalled = true;
+        ["vgp_onbuttondown", "vgp_onbuttonup", "vgp_direction", "keydown", "keyup", "keypress"].forEach(evName => {
+            window.addEventListener(evName, (e) => {
+                const sec = document.getElementById("ally-center-qam-section");
+                if (__allyNavActivo && sec && __allyEsEditable(sec)) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                }
+            }, true);
+        });
+        document.addEventListener("focusin", (e) => {
+            const sec = document.getElementById("ally-center-qam-section");
+            if (__allyNavActivo && sec && __allyEsEditable(sec) && !sec.contains(e.target)) {
+                e.stopImmediatePropagation();
+                if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+            }
+        }, true);
+    }
+
+    if (!window.__allySteamInputHooked && typeof SteamClient !== "undefined" && SteamClient.Input && SteamClient.Input.RegisterForControllerInputMessages) {
+        window.__allySteamInputHooked = true;
+        const MAPA_STEAM_BTN = { 20: "UP", 21: "DOWN", 22: "LEFT", 23: "RIGHT", 0: "A", 1: "B", 30: "LB", 31: "RB" };
+        SteamClient.Input.RegisterForControllerInputMessages((nControllerIndex, nButton, bPressed) => {
+            const ac = MAPA_STEAM_BTN[nButton];
+            if (!bPressed) {
+                if (ac === "LEFT" || ac === "RIGHT") __allyDetenerHold();
+                return;
+            }
+            if (ac && window.__allyManejarMando) {
+                window.__allyManejarMando(ac);
+                if (ac === "LEFT" || ac === "RIGHT") {
+                    __allyDetenerHold();
+                    const elAct = __allyElFoco;
+                    if (elAct && elAct.tagName === "INPUT" && elAct.type === "range") {
+                        __allyHoldTimer = setTimeout(() => {
+                            __allyHoldInterval = setInterval(() => {
+                                if (!__allyNavActivo || __allyElFoco !== elAct) { __allyDetenerHold(); return; }
+                                window.__allyManejarMando(ac);
+                            }, 65);
+                        }, 320);
+                    }
+                }
+            }
+        });
+    }
+
+
+
+
+
+
+
+
+
     window.__allyActualizarEstado = (jsonStr) => {
         try {
             const nuevo = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
