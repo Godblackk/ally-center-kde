@@ -4,7 +4,10 @@
   <img src="docs/capturas/logo-ally.png" alt="Center ROG Ally / Ally X" width="128"/>
 </p>
 
-# ⚡ Center ROG Ally / Ally X
+
+<div align="center">
+<h1>⚡ Center ROG Ally / Ally X</h1>
+</div>
 
 **Center ROG Ally / Ally X** is a native power management, thermal fan curve, and RGB lighting control center built specifically for the **ASUS ROG Ally** and **ROG Ally X** handhelds on **KDE Plasma 6** desktop environments (such as CachyOS, Bazzite, or Arch Linux) and **Steam Gaming Mode** (Gamescope).
 
@@ -14,63 +17,75 @@ The project delivers a clean, minimalist interface with zero heavy background da
 
 ## 📸 Screenshots
 
-### 🎮 Gaming Mode (Decky Loader Plugin)
+### 🎮 Gaming Mode (Native Interface)
+
+| Power & TDP | Fan Curve | RGB Lighting |
+| :---: | :---: | :---: |
+| ![Manual TDP](docs/capturas/game-tdp-manual.png) | ![Custom Curve](docs/capturas/game-venti-perso-cascada.png) | ![Static RGB](docs/capturas/game-rgb-fijo.png) |
+
+<details>
+<summary><b>📂 View all Gaming Mode screenshots (8 more)</b></summary>
+<br>
 
 #### ⚡ Power & TDP
 
-| Power Profiles (13W / 17W / 30W) | Manual TDP Limit, Boost & Battery Care |
-| :---: | :---: |
-| ![Gaming Mode TDP Profiles](docs/capturas/game-tdp-perfiles.png) | ![Gaming Mode Manual TDP](docs/capturas/game-tdp-manual.png) |
+| Power Profiles (13W / 17W / 30W) |
+| :---: |
+| ![TDP Profiles](docs/capturas/game-tdp-perfiles.png) |
 
 #### 🌀 Fan Control
 
 | Mode Selector | Automatic (BIOS) |
 | :---: | :---: |
-| ![Fan Modes](docs/capturas/game-venti-perfiles.png) | ![Automatic BIOS Fan](docs/capturas/game-venti-perfiles-bios.png) |
+| ![Fan Modes](docs/capturas/game-venti-perfiles.png) | ![BIOS Fan](docs/capturas/game-venti-perfiles-bios.png) |
 
-| Linked Manual (CPU + GPU) | Independent Manual (CPU / GPU) |
-| :---: | :---: |
-| ![Linked Manual](docs/capturas/game-venti-perfiles-unico.png) | ![Independent Manual](docs/capturas/game-venti-perfiles-dual.png) |
-
-| Custom Curve (Cascade Mode) | Custom Curve (All Together) |
-| :---: | :---: |
-| ![Cascade Curve](docs/capturas/game-venti-perso-cascada.png) | ![All Together Curve](docs/capturas/game-venti-perso-todo.png) |
-
-#### 🌈 Joystick RGB Lighting
-
-| Static Color & Brightness | Dynamic Effects | Smart Sensors |
+| Linked Manual (CPU + GPU) | Independent Manual (CPU / GPU) | Curve (All Together) |
 | :---: | :---: | :---: |
-| ![Static RGB](docs/capturas/game-rgb-fijo.png) | ![RGB Effects](docs/capturas/game-rgb-efecto.png) | ![RGB Sensors](docs/capturas/game-rgb-sensor.png) |
+| ![Linked Manual](docs/capturas/game-venti-perfiles-unico.png) | ![Independent Manual](docs/capturas/game-venti-perfiles-dual.png) | ![All Together Curve](docs/capturas/game-venti-perso-todo.png) |
+
+#### 🌈 RGB Lighting
+
+| Dynamic Effects | Smart Sensors |
+| :---: | :---: |
+| ![RGB Effects](docs/capturas/game-rgb-efecto.png) | ![RGB Sensors](docs/capturas/game-rgb-sensor.png) |
+
+</details>
 
 ---
 
 ### 🖥️ Desktop Mode (KDE Plasma 6 Widget)
 
+| Power & TDP | Interactive Graph Curve | RGB Lighting |
+| :---: | :---: | :---: |
+| ![KDE Manual TDP](docs/capturas/kde-tdp-manual.png) | ![KDE Graph Curve](docs/capturas/kde-venti-curva.png) | ![KDE Static RGB](docs/capturas/kde-rgb-fijo.png) |
+
+<details>
+<summary><b>📂 View all Desktop Mode screenshots (10 more)</b></summary>
+<br>
+
 #### ⚡ Power & TDP
 
-| Preset Profiles | Manual Tuning (4W – 30W) |
-| :---: | :---: |
-| ![KDE TDP Profiles](docs/capturas/kde-tdp-perfiles.png) | ![KDE Manual TDP](docs/capturas/kde-tdp-manual.png) |
+| Preset Profiles |
+| :---: |
+| ![KDE TDP Profiles](docs/capturas/kde-tdp-perfiles.png) |
 
 #### 🌀 Fan Control
 
-| Automatic (BIOS) | Linked Manual | Independent Manual |
-| :---: | :---: | :---: |
-| ![KDE BIOS](docs/capturas/kde-venti-bios.png) | ![KDE Linked Manual](docs/capturas/kde-venti-perfil-solo.png) | ![KDE Dual Manual](docs/capturas/kde-venti-perfil-dual.png) |
+| Automatic (BIOS) | Linked Manual | Independent Manual | Sliders View |
+| :---: | :---: | :---: | :---: |
+| ![KDE BIOS](docs/capturas/kde-venti-bios.png) | ![KDE Linked Manual](docs/capturas/kde-venti-perfil-solo.png) | ![KDE Dual Manual](docs/capturas/kde-venti-perfil-dual.png) | ![KDE Curve Sliders](docs/capturas/kde-venti-desliz.png) |
 
-| Interactive Graph Curve (8 Points) | Sliders View (30°C – 100°C) |
+#### 🌈 RGB Lighting
+
+| Mode Selector | Breathing Effect | Color Cycle |
+| :---: | :---: | :---: |
+| ![KDE RGB Modes](docs/capturas/kde-rgb-modos.png) | ![KDE Breathing RGB](docs/capturas/kde-rgb-respi.png) | ![KDE Color Cycle](docs/capturas/kde-rgb-ciclo.png) |
+
+| APU Temperature Sensor | Lighting Off |
 | :---: | :---: |
-| ![KDE Graph Curve](docs/capturas/kde-venti-curva.png) | ![KDE Curve Sliders](docs/capturas/kde-venti-desliz.png) |
+| ![KDE APU Temp RGB](docs/capturas/kde-rgb-temp.png) | ![KDE RGB Off](docs/capturas/kde-rgb-off.png) |
 
-#### 🌈 RGB Lighting & R/G/B Sliders
-
-| RGB Mode Selector | Static Color + R/G/B Sliders | Breathing Effect |
-| :---: | :---: | :---: |
-| ![KDE RGB Modes](docs/capturas/kde-rgb-modos.png) | ![KDE Static RGB](docs/capturas/kde-rgb-fijo.png) | ![KDE Breathing RGB](docs/capturas/kde-rgb-respi.png) |
-
-| Color Cycle | APU Temperature Sensor | Lighting Off |
-| :---: | :---: | :---: |
-| ![KDE Color Cycle](docs/capturas/kde-rgb-ciclo.png) | ![KDE APU Temp RGB](docs/capturas/kde-rgb-temp.png) | ![KDE RGB Off](docs/capturas/kde-rgb-off.png) |
+</details>
 
 ---
 
