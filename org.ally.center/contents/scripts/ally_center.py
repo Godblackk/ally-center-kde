@@ -508,9 +508,15 @@ def restaurar_boot():
         modo_fan = estado.get("modo_fan", "auto")
         if modo_fan == "auto":
             cambiar_modo(carpeta_curva, "auto")
-        elif modo_fan == "manual" and "fan_pct" in estado:
-            pct = int(estado["fan_pct"])
-            aplicar_puntos(carpeta_curva, ("pwm1", "pwm2"), [pct] * 8)
+        elif modo_fan == "manual":
+            if estado.get("vincular_fans", True):
+                pct = max(25, min(100, int(estado.get("fan_pct", 50))))
+                aplicar_puntos(carpeta_curva, ("pwm1", "pwm2"), [pct] * 8)
+            else:
+                cpu_pct = max(25, min(100, int(estado.get("cpu_pct", estado.get("fan_pct", 50)))))
+                gpu_pct = max(25, min(100, int(estado.get("gpu_pct", estado.get("fan_pct", 50)))))
+                aplicar_puntos(carpeta_curva, ("pwm1",), [cpu_pct] * 8)
+                aplicar_puntos(carpeta_curva, ("pwm2",), [gpu_pct] * 8)
         elif modo_fan == "curva" and "curva" in estado:
             puntos = estado["curva"]
             if len(puntos) == 8:
