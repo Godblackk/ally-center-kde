@@ -14,33 +14,63 @@ El proyecto ofrece una interfaz limpia, minimalista y sin procesos pesados en se
 
 ## 📸 Capturas de Pantalla
 
-### 🖥️ Modo Escritorio (KDE Plasma 6)
+### 🎮 Modo Juego (Decky Loader Plugin)
 
-| Panel Principal | Perfiles de Energía y TDP |
+#### ⚡ Energía y TDP
+
+| Perfiles de Energía (13W / 17W / 30W) | Límite TDP Manual, Boost y Cuidado Batería |
 | :---: | :---: |
-| <img src="docs/capturas/01-inicio.png" alt="Panel Principal" width="380"/> | <img src="docs/capturas/02-energia-tdp.png" alt="Perfiles de Energía y TDP" width="380"/> |
+| ![Perfiles TDP en Modo Juego](docs/capturas/game-tdp-perfiles.png) | ![TDP Manual en Modo Juego](docs/capturas/game-tdp-manual.png) |
 
-| Ventiladores (Auto / Manual) | Curva Personalizada |
+#### 🌀 Control de Ventiladores
+
+| Selector de Modos | Automático (BIOS) |
 | :---: | :---: |
-| <img src="docs/capturas/03-ventiladores.png" alt="Ventiladores" width="380"/> | <img src="docs/capturas/04-curva-personalizada.png" alt="Curva Personalizada" width="380"/> |
+| ![Modos de Ventilador](docs/capturas/game-venti-perfiles.png) | ![Ventilador Automático BIOS](docs/capturas/game-venti-perfiles-bios.png) |
 
-| Iluminación RGB | Apariencia del Widget |
+| Manual Vinculado (CPU + GPU) | Manual Independiente (CPU / GPU) |
 | :---: | :---: |
-| <img src="docs/capturas/05-rgb.png" alt="Iluminación RGB" width="380"/> | <img src="docs/capturas/06-apariencia.png" alt="Apariencia del Widget" width="380"/> |
+| ![Manual Vinculado](docs/capturas/game-venti-perfiles-unico.png) | ![Manual Independiente](docs/capturas/game-venti-perfiles-dual.png) |
 
-### 🎮 Modo Juego (SteamOS / Gamescope)
-
-| Pestaña Nativa en QAM | Perfiles y Presets TDP |
+| Curva Personalizada (Modo Cascada) | Curva Personalizada (Todos Juntos) |
 | :---: | :---: |
-| <img src="docs/capturas/07-gamemode-inicio.png" alt="Pestaña Nativa en QAM" width="380"/> | <img src="docs/capturas/08-gamemode-tdp.png" alt="Perfiles y Presets TDP" width="380"/> |
+| ![Curva Cascada](docs/capturas/game-venti-perso-cascada.png) | ![Curva Todos Juntos](docs/capturas/game-venti-perso-todo.png) |
 
-| Control de Ventiladores | Curva Térmica en Juego |
-| :---: | :---: |
-| <img src="docs/capturas/09-gamemode-ventiladores.png" alt="Control de Ventiladores" width="380"/> | <img src="docs/capturas/10-gamemode-curva.png" alt="Curva Térmica en Juego" width="380"/> |
+#### 🌈 Iluminación RGB de Joysticks
 
-| Iluminación RGB | Estadísticas en Tiempo Real |
+| Color Fijo y Brillo | Efectos Dinámicos | Sensores Inteligentes |
+| :---: | :---: | :---: |
+| ![RGB Fijo](docs/capturas/game-rgb-fijo.png) | ![RGB Efectos](docs/capturas/game-rgb-efecto.png) | ![RGB Sensores](docs/capturas/game-rgb-sensor.png) |
+
+---
+
+### 🖥️ Modo Escritorio (KDE Plasma 6 Widget)
+
+#### ⚡ Energía y TDP
+
+| Perfiles Predefinidos | Ajuste Manual (4W – 30W) |
 | :---: | :---: |
-| <img src="docs/capturas/11-gamemode-rgb.png" alt="Iluminación RGB en Juego" width="380"/> | <img src="docs/capturas/12-gamemode-estadisticas.png" alt="Estadísticas en Tiempo Real" width="380"/> |
+| ![Perfiles TDP KDE](docs/capturas/kde-tdp-perfiles.png) | ![TDP Manual KDE](docs/capturas/kde-tdp-manual.png) |
+
+#### 🌀 Control de Ventiladores
+
+| Automático (BIOS) | Manual Vinculado | Manual Independiente |
+| :---: | :---: | :---: |
+| ![BIOS KDE](docs/capturas/kde-venti-bios.png) | ![Manual Vinculado KDE](docs/capturas/kde-venti-perfil-solo.png) | ![Manual Dual KDE](docs/capturas/kde-venti-perfil-dual.png) |
+
+| Curva Gráfica Interactiva (8 Puntos) | Vista por Deslizadores (30°C – 100°C) |
+| :---: | :---: |
+| ![Curva Gráfica KDE](docs/capturas/kde-venti-curva.png) | ![Deslizadores Curva KDE](docs/capturas/kde-venti-desliz.png) |
+
+#### 🌈 Iluminación RGB y Selector R/G/B
+
+| Selector de Modos RGB | Color Fijo + Sliders R/G/B | Efecto Respiración |
+| :---: | :---: | :---: |
+| ![Modos RGB KDE](docs/capturas/kde-rgb-modos.png) | ![RGB Fijo KDE](docs/capturas/kde-rgb-fijo.png) | ![RGB Respiración KDE](docs/capturas/kde-rgb-respi.png) |
+
+| Ciclo de Colores | Sensor Temperatura APU | Iluminación Apagada |
+| :---: | :---: | :---: |
+| ![RGB Ciclo KDE](docs/capturas/kde-rgb-ciclo.png) | ![RGB Temp APU KDE](docs/capturas/kde-rgb-temp.png) | ![RGB Apagado KDE](docs/capturas/kde-rgb-off.png) |
 
 ---
 

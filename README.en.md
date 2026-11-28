@@ -14,33 +14,63 @@ The project delivers a clean, minimalist interface with zero heavy background da
 
 ## 📸 Screenshots
 
-### 🖥️ Desktop Mode (KDE Plasma 6)
+### 🎮 Gaming Mode (Decky Loader Plugin)
 
-| Main Dashboard | Power Profiles & TDP |
+#### ⚡ Power & TDP
+
+| Power Profiles (13W / 17W / 30W) | Manual TDP Limit, Boost & Battery Care |
 | :---: | :---: |
-| <img src="docs/capturas/01-inicio.png" alt="Main Dashboard" width="380"/> | <img src="docs/capturas/02-energia-tdp.png" alt="Power Profiles and TDP" width="380"/> |
+| ![Gaming Mode TDP Profiles](docs/capturas/game-tdp-perfiles.png) | ![Gaming Mode Manual TDP](docs/capturas/game-tdp-manual.png) |
 
-| Fans (Auto / Manual) | Custom Fan Curve |
+#### 🌀 Fan Control
+
+| Mode Selector | Automatic (BIOS) |
 | :---: | :---: |
-| <img src="docs/capturas/03-ventiladores.png" alt="Fans" width="380"/> | <img src="docs/capturas/04-curva-personalizada.png" alt="Custom Fan Curve" width="380"/> |
+| ![Fan Modes](docs/capturas/game-venti-perfiles.png) | ![Automatic BIOS Fan](docs/capturas/game-venti-perfiles-bios.png) |
 
-| RGB Lighting | Widget Appearance |
+| Linked Manual (CPU + GPU) | Independent Manual (CPU / GPU) |
 | :---: | :---: |
-| <img src="docs/capturas/05-rgb.png" alt="RGB Lighting" width="380"/> | <img src="docs/capturas/06-apariencia.png" alt="Widget Appearance" width="380"/> |
+| ![Linked Manual](docs/capturas/game-venti-perfiles-unico.png) | ![Independent Manual](docs/capturas/game-venti-perfiles-dual.png) |
 
-### 🎮 Gaming Mode (SteamOS / Gamescope)
-
-| Native QAM Tab | Profiles & TDP Presets |
+| Custom Curve (Cascade Mode) | Custom Curve (All Together) |
 | :---: | :---: |
-| <img src="docs/capturas/07-gamemode-inicio.png" alt="Native QAM Tab" width="380"/> | <img src="docs/capturas/08-gamemode-tdp.png" alt="Profiles and TDP Presets" width="380"/> |
+| ![Cascade Curve](docs/capturas/game-venti-perso-cascada.png) | ![All Together Curve](docs/capturas/game-venti-perso-todo.png) |
 
-| Fan Control | In-Game Thermal Curve |
-| :---: | :---: |
-| <img src="docs/capturas/09-gamemode-ventiladores.png" alt="Fan Control" width="380"/> | <img src="docs/capturas/10-gamemode-curva.png" alt="In-Game Thermal Curve" width="380"/> |
+#### 🌈 Joystick RGB Lighting
 
-| RGB Lighting | Real-Time Telemetry |
+| Static Color & Brightness | Dynamic Effects | Smart Sensors |
+| :---: | :---: | :---: |
+| ![Static RGB](docs/capturas/game-rgb-fijo.png) | ![RGB Effects](docs/capturas/game-rgb-efecto.png) | ![RGB Sensors](docs/capturas/game-rgb-sensor.png) |
+
+---
+
+### 🖥️ Desktop Mode (KDE Plasma 6 Widget)
+
+#### ⚡ Power & TDP
+
+| Preset Profiles | Manual Tuning (4W – 30W) |
 | :---: | :---: |
-| <img src="docs/capturas/11-gamemode-rgb.png" alt="RGB Lighting in Game" width="380"/> | <img src="docs/capturas/12-gamemode-estadisticas.png" alt="Real-Time Telemetry" width="380"/> |
+| ![KDE TDP Profiles](docs/capturas/kde-tdp-perfiles.png) | ![KDE Manual TDP](docs/capturas/kde-tdp-manual.png) |
+
+#### 🌀 Fan Control
+
+| Automatic (BIOS) | Linked Manual | Independent Manual |
+| :---: | :---: | :---: |
+| ![KDE BIOS](docs/capturas/kde-venti-bios.png) | ![KDE Linked Manual](docs/capturas/kde-venti-perfil-solo.png) | ![KDE Dual Manual](docs/capturas/kde-venti-perfil-dual.png) |
+
+| Interactive Graph Curve (8 Points) | Sliders View (30°C – 100°C) |
+| :---: | :---: |
+| ![KDE Graph Curve](docs/capturas/kde-venti-curva.png) | ![KDE Curve Sliders](docs/capturas/kde-venti-desliz.png) |
+
+#### 🌈 RGB Lighting & R/G/B Sliders
+
+| RGB Mode Selector | Static Color + R/G/B Sliders | Breathing Effect |
+| :---: | :---: | :---: |
+| ![KDE RGB Modes](docs/capturas/kde-rgb-modos.png) | ![KDE Static RGB](docs/capturas/kde-rgb-fijo.png) | ![KDE Breathing RGB](docs/capturas/kde-rgb-respi.png) |
+
+| Color Cycle | APU Temperature Sensor | Lighting Off |
+| :---: | :---: | :---: |
+| ![KDE Color Cycle](docs/capturas/kde-rgb-ciclo.png) | ![KDE APU Temp RGB](docs/capturas/kde-rgb-temp.png) | ![KDE RGB Off](docs/capturas/kde-rgb-off.png) |
 
 ---
 
