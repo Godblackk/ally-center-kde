@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
 set -e
 
+if [[ "${LANG,,}" == es* ]]; then
+    IS_ES=1
+else
+    IS_ES=0
+fi
+msg() { if [ "$IS_ES" -eq 1 ]; then echo -e "$1"; else echo -e "$2"; fi; }
+
 USUARIO=$(whoami)
 if [ "$USUARIO" = "root" ]; then
-    echo "Error: Ejecuta ./install.sh como tu usuario normal (sin sudo). El script pedira sudo cuando lo necesite."
+    msg "Error: Ejecuta ./install.sh como tu usuario normal (sin sudo). El script pedirá sudo cuando lo necesite." \
+        "Error: Run ./install.sh as your normal user (without sudo). The script will ask for sudo when needed."
     exit 1
 fi
 
 DIR_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "==> Instalando Center ROG Ally para el usuario: $USUARIO..."
+msg "==> Instalando Center ROG Ally para el usuario: $USUARIO..." \
+    "==> Installing Center ROG Ally for user: $USUARIO..."
 
 if kpackagetool6 -t Plasma/Applet -l | grep -q "org.ally.center"; then
     kpackagetool6 -t Plasma/Applet -u "$DIR_SCRIPT/org.ally.center"
@@ -42,8 +51,7 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable ally-center.service
 
-
-# Restaurar TDP, curva y RGB automaticamente al despertar de suspension/hibernacion
+# Restaurar TDP, curva y RGB automáticamente al despertar de suspensión/hibernación
 sudo mkdir -p /etc/systemd/system-sleep
 cat << EOF | sudo tee /etc/systemd/system-sleep/ally-center > /dev/null
 #!/bin/sh
@@ -53,9 +61,10 @@ fi
 EOF
 sudo chmod +x /etc/systemd/system-sleep/ally-center
 
-
 # Instalar dependencia de websockets para el puente de Modo Juego
 if ! python3 -c "import websockets" 2>/dev/null; then
+    msg "==> Instalando dependencia python-websockets..." \
+        "==> Installing python-websockets dependency..."
     if command -v pacman &>/dev/null; then
         sudo pacman -S --noconfirm --needed python-websockets 2>/dev/null || true
     elif command -v dnf &>/dev/null; then
@@ -96,9 +105,10 @@ mkdir -p "$HOME/.config/environment.d"
 echo "SDL_JOYSTICK_HIDAPI=0" > "$HOME/.config/environment.d/ally-center.conf"
 command -v flatpak >/dev/null 2>&1 && flatpak override --user --env=SDL_JOYSTICK_HIDAPI=0 2>/dev/null || true
 
-echo "==> Reiniciando Plasma..."
+msg "==> Reiniciando Plasma..." \
+    "==> Restarting Plasma..."
 
 systemctl --user restart plasma-plasmashell 2>/dev/null || true
 
-echo "¡Listo! Haz clic derecho en tu barra de tareas -> Anadir o gestionar widgets -> Center ROG Ally."
-
+msg "¡Listo! Haz clic derecho en tu barra de tareas -> Añadir o gestionar widgets -> Center ROG Ally." \
+    "Done! Right-click your taskbar -> Add or Manage Widgets -> Center ROG Ally."

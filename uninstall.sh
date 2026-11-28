@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
+if [[ "${LANG,,}" == es* ]]; then
+    IS_ES=1
+else
+    IS_ES=0
+fi
+msg() { if [ "$IS_ES" -eq 1 ]; then echo -e "$1"; else echo -e "$2"; fi; }
+
 USUARIO=$(whoami)
 if [ "$USUARIO" = "root" ]; then
-    echo "Error: Ejecuta ./uninstall.sh como tu usuario normal (sin sudo)."
+    msg "Error: Ejecuta ./uninstall.sh como tu usuario normal (sin sudo)." \
+        "Error: Run ./uninstall.sh as your normal user (without sudo)."
     exit 1
 fi
 
-echo "==> Desinstalando Center ROG Ally..."
+msg "==> Desinstalando Center ROG Ally..." \
+    "==> Uninstalling Center ROG Ally..."
 
 # 1. Detener y eliminar el servicio del puente de Modo Juego (usuario)
 systemctl --user disable --now ally-steam-bridge.service 2>/dev/null || true
@@ -35,7 +44,9 @@ if kpackagetool6 -t Plasma/Applet -l | grep -q "org.ally.center"; then
     kpackagetool6 -t Plasma/Applet -r org.ally.center
 fi
 
-echo "==> Reiniciando Plasma..."
+msg "==> Reiniciando Plasma..." \
+    "==> Restarting Plasma..."
 systemctl --user restart plasma-plasmashell 2>/dev/null || true
 
-echo "¡Center ROG Ally desinstalado por completo!"
+msg "¡Center ROG Ally desinstalado por completo!" \
+    "Center ROG Ally has been completely uninstalled!"
